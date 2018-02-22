@@ -20,3 +20,10 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+# manually added files and folders to ignore
+.idea
+target
+src/test
+src/main/resources
+dorpen.iml
