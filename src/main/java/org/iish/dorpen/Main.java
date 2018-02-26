@@ -243,10 +243,10 @@ public class Main {
             // TODO: After that stalls, then use the km² values from the separate list.
             boolean tried_with_number_of_homes = false;
             while (number_of_records_with_multiple_links != 0) {
-                for (Map.Entry<String, Set<String>> code_to_id : codesToIds.entrySet()) {
-                    System.out.println(getLineNumber() + " -> " + code_to_id.getKey() + " - " + code_to_id.getValue());
-                }
-                System.out.println(getLineNumber() + " -> " + codeHierarchy.values());
+//                for (Map.Entry<String, Set<String>> code_to_id : codesToIds.entrySet()) {
+//                    System.out.println(getLineNumber() + " -> " + code_to_id.getKey() + " - " + code_to_id.getValue());
+//                }
+//                System.out.println(getLineNumber() + " -> " + codeHierarchy.values());
 
                 for (Map.Entry<String, Record> record : records.entrySet()) {
                     if (record.getValue().links.size() > 1) {
@@ -345,7 +345,7 @@ public class Main {
                             }
                         }
 
-                        System.out.println(getLineNumber() + " -> " + years + " - " + uniqueValuesToCalculateFrom.values());
+//                        System.out.println(getLineNumber() + " -> " + years + " - " + uniqueValuesToCalculateFrom.values());
 
                         /** Determine the value to calculate. These are the codes that are the same, ergo: the codes that need to be split up.*/
                         TreeSet<Integer> duplicateYears = new TreeSet<>();
@@ -359,7 +359,7 @@ public class Main {
                             }
                         }
 
-                        System.out.println(getLineNumber() + " -> " + equalValueToCalculate.keySet() + " - " + equalValueToCalculate.values() + " - " + duplicateYears);
+//                        System.out.println(getLineNumber() + " -> " + equalValueToCalculate.keySet() + " - " + equalValueToCalculate.values() + " - " + duplicateYears);
 
                         Integer yearToCheck = Integer.MAX_VALUE;
                         Integer year_diff = Integer.MAX_VALUE;
@@ -372,7 +372,7 @@ public class Main {
                             /** Get the year to perform the check upon */
                             if (equalValueToCalculate.containsKey(calculate_record.getValue().id)) {
                                 yearToCheck = calculate_record.getValue().year;
-                                System.out.println(getLineNumber() + " -> " + calculate_record.getValue().year);
+//                                System.out.println(getLineNumber() + " -> " + calculate_record.getValue().year);
 
                                 /** Determine which year is closest to the year to calculate the values for */
                                 for (Integer yearToCalculateFrom : years) {
@@ -381,7 +381,7 @@ public class Main {
                                         timeBetweenYears = timeBetweenYears * -1;
                                     }
                                     if (timeBetweenYears < year_diff) {
-                                        System.out.println(getLineNumber() + " -> " + timeBetweenYears + " - " + year_diff + " - " + yearToCalculateFrom);
+//                                        System.out.println(getLineNumber() + " -> " + timeBetweenYears + " - " + year_diff + " - " + yearToCalculateFrom);
                                         year_temp_something_dunno = yearToCalculateFrom;
                                         year_diff = timeBetweenYears;
                                         yearToCalculateWith = calculate_record.getValue().year;
@@ -391,7 +391,7 @@ public class Main {
 
                         }
 
-                        System.out.println(getLineNumber() + " -> " + year_diff + " - " + yearToCalculateWith);
+//                        System.out.println(getLineNumber() + " -> " + year_diff + " - " + yearToCalculateWith);
 
                         Map<BigDecimal, String> valuesToCalculateWithMap = new HashMap<>();
                         /** Loop through the Map of unique values to perform the calculation */
@@ -404,10 +404,11 @@ public class Main {
                             }
                         }
 
-                        System.out.println(getLineNumber() + " -> " + valuesToCalculateWithMap.values());
+//                        System.out.println(getLineNumber() + " -> " + valuesToCalculateWithMap.values());
 
                         /** Check if the Map with unique values is bigger than 0 */
                         if (valuesToCalculateWithMap.size() > 1) {
+                            System.out.println(getLineNumber() + " -> " + " Using number of homes!");
 
                             List<BigDecimal> values = new ArrayList<>();
                             /** Sort the values so the first value is the smallest one for calculation purposes */
@@ -415,7 +416,7 @@ public class Main {
                                 values.add(value_to_calculate.getKey());
                             }
                             Collections.sort(values);
-                            System.out.println(getLineNumber() + " -> " + values);
+//                            System.out.println(getLineNumber() + " -> " + values);
 
                             /** Loop through the values to calculate in order to get the correct number of houses based on the proportions */
                             for (Map.Entry<String, BigDecimal> valueToCalculate : equalValueToCalculate.entrySet()) {
@@ -426,7 +427,7 @@ public class Main {
                                     result = new Pair(new BigDecimal(0), new BigDecimal(0));
                                 }
 
-                                System.out.println(getLineNumber() + " -> " + result.lowestNumber + " - " + result.highestNumber + " from " + valueToCalculate.getValue() + " - " + valueToCalculate.getKey());
+//                                System.out.println(getLineNumber() + " -> " + result.lowestNumber + " - " + result.highestNumber + " from " + valueToCalculate.getValue() + " - " + valueToCalculate.getKey());
                                 if (!result.lowestNumber.equals(new BigDecimal(0))) {
 
                                     /** Determine the highest number of the returned value after the calculation */
@@ -435,8 +436,8 @@ public class Main {
                                     if (valuesToCalculateWithMap.size() > 1) {
                                         linkHighestNumber = valuesToCalculateWithMap.get(values.get(1));
                                     }
-                                    System.out.println(getLineNumber() + " -> " + valuesToCalculateWithMap + " - " + result.lowestNumber + " - " + result.highestNumber);
-                                    System.out.println(getLineNumber() + " -> " + valueToCalculate.getKey() + " - " + record.getValue().links.toString());
+//                                    System.out.println(getLineNumber() + " -> " + valuesToCalculateWithMap + " - " + result.lowestNumber + " - " + result.highestNumber);
+//                                    System.out.println(getLineNumber() + " -> " + valueToCalculate.getKey() + " - " + record.getValue().links.toString());
 
                                     if (valueToCalculate.getKey().equals(record.getKey())) {
                                         for (int i = 0; i < record.getValue().links.size(); i++) {
@@ -460,7 +461,7 @@ public class Main {
                                     System.out.println(getLineNumber() + " -> " + " Result lowestnumber is 0!!!");
                                 }
                             }
-                            System.out.println(getLineNumber() + " -> " + recordsToAdd.values());
+//                            System.out.println(getLineNumber() + " -> " + recordsToAdd.values());
                         } else if (valuesToCalculateWithMap.size() <= 1 && tried_with_number_of_homes) {
                             System.out.println(getLineNumber() + " -> " + " Using square kilometres");
                             Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
@@ -476,7 +477,7 @@ public class Main {
                                     }
                                 }
                             }
-                            System.out.println(getLineNumber() + " -> " + record.getValue().year);
+//                            System.out.println(getLineNumber() + " -> " + record.getValue().year);
                             if (squareKilometresToCalculateWithMap.size() > 0) {
                                 for (Map.Entry<String, BigDecimal> entry : squareKilometresToCalculateWithMap.entrySet()) {
                                     BigDecimal ratio = entry.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
@@ -494,6 +495,9 @@ public class Main {
                                     }
                                 }
                                 recordsToRemove.add(record.getKey());
+                                System.out.println(getLineNumber() + " -> Set the tried back to false!");
+                                tried_with_number_of_homes = false;
+                                break;
                             }
                         }
                     }
@@ -524,7 +528,7 @@ public class Main {
                     number_of_homes = number_of_homes.add(record.houses);
                 }
 
-                System.out.println(getLineNumber() + " -> " + number_of_homes);
+                System.out.println(getLineNumber() + " -> New number of homes is: " + number_of_homes);
 
                 int duplicate_link_code_validator = 0;
                 for (Record record : records.values()) {
@@ -624,6 +628,7 @@ public class Main {
                                 break;
                             default:
                                 if (dorpCollected.getValue().yearMap.get(s).key.equals("0")) {
+                                    System.out.println(getLineNumber() + " -> Number of homes is zero for: " + dorpCollected.getKey());
                                     String numberOfHouses = handleHousesBeingZero(dorpCollected, s);
                                     dorpenOutput.add(numberOfHouses);
                                     dorpCollected.getValue().yearMap.get(s).key = numberOfHouses;
