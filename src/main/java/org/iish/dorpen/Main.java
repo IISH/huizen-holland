@@ -217,17 +217,17 @@ public class Main {
             CSVPrinter csvPrinter = new CSVPrinter(writer, csvFormat);
 
             List<String> headerRow = new ArrayList<>();
-//            headerRow.add("YEAR");
-//            headerRow.add("LINK");
-//            headerRow.add("HOUSES");
-//            headerRow.add("KM2");
+            headerRow.add("YEAR");
+            headerRow.add("LINK");
+            headerRow.add("HOUSES");
+            headerRow.add("KM2");
 
             // NOTE commented for testing!
             // ################################# //
-            headerRow.add("Code");
-            List<String> temp_list = years_from_data.stream().sorted((t1, t2) -> t1 <= t2 ? -1 : 1).map(map -> Integer.toString(map)).collect(Collectors.toList());
-            headerRow.addAll(temp_list);
-            System.out.println(temp_list);
+//            headerRow.add("Code");
+//            List<String> temp_list = years_from_data.stream().sorted((t1, t2) -> t1 <= t2 ? -1 : 1).map(map -> Integer.toString(map)).collect(Collectors.toList());
+//            headerRow.addAll(temp_list);
+//            System.out.println(temp_list);
             // ################################# //
 
             csvPrinter.printRecord(headerRow);
@@ -804,14 +804,8 @@ public class Main {
                                 }
                             }
                         }
-                        /**
-                         * 1795;HO1910;101.683103216217;2.74009
-                         * 1795;HO1840;12.5838264293184;2.37556
-                         * 1795;HO1930B;7.37672583787631;0.97028
-                         * 1795;HO1890;1.30177514786052;5.87345
-                         */
 
-                        System.out.println(getLineNumber() + " -> " + uniques + " - " + years + " - " + uniqueValuesToCalculateFrom);
+//                        System.out.println(getLineNumber() + " -> " + uniques + " - " + years + " - " + uniqueValuesToCalculateFrom);
 
                         /** Determine the value to calculate. These are the codes that are the same, ergo: the codes that need to be split up.*/
                         TreeSet<Integer> duplicateYears = new TreeSet<>();
@@ -825,7 +819,7 @@ public class Main {
                             }
                         }
 
-                        System.out.println(getLineNumber() + " -> " + duplicates + " - " + duplicateYears + " - " + equalValueToCalculate);
+//                        System.out.println(getLineNumber() + " -> Records with duplicate LINK's: " + duplicates + " - Years of the duplicate records: " + duplicateYears + " - Equal values to calculate from[id, houses]: " + equalValueToCalculate);
 
                         Integer yearToCheck = Integer.MAX_VALUE;
                         Integer year_diff = Integer.MAX_VALUE;
@@ -859,7 +853,7 @@ public class Main {
 
                         }
 
-                        System.out.println(getLineNumber() + " -> " + year_diff + " - " + yearToCalculateWith + " - " + year_temp_something_dunno);
+//                        System.out.println(getLineNumber() + " -> Year used to calculate from: " + yearToCalculateWith + " - Year to recalculate: " + year_temp_something_dunno);
 //                        logger.info(getLineNumber() + " -> " + year_diff + " - " + yearToCalculateWith);
 
 //                        Map<BigDecimal, String> valuesToCalculateWithMap = new HashMap<>();
@@ -875,42 +869,44 @@ public class Main {
                             }
                         }
 
-                        System.out.println(getLineNumber() + " -> " + uniqueValuesToCalculateFrom + " - " + valuesToCalculateWithMap);
+//                        System.out.println(getLineNumber() + " -> Unique values to calculate from[id, houses]: " + uniqueValuesToCalculateFrom);
+//                        System.out.println(getLineNumber() + " - Values to calculate with[houses, link]: " + valuesToCalculateWithMap);
+//                        System.out.println(getLineNumber() + " -> Values to calculate[id, houses]: " + equalValueToCalculate);
 
-                        // TODO: Use valuesToCalculateWithMap to calculate the right amount of homes!
-                        // TODO: {1.30177514786052=[HO1890], 7.37672583787631=[HO1930B], 12.5838264293184=[HO1840], 101.683103216217=[HO1910]}
-                        // TODO: Maybe get the id of those records? Is it needed? Probably not!
+                        BigDecimal total_to_calculate_from = new BigDecimal(0);
+                        for(BigDecimal bd : valuesToCalculateWithMap.keySet()){
+                            total_to_calculate_from = total_to_calculate_from.add(bd);
+                        }
 
+                        // TODO: catch when entry.getKey() == 0
+                        if(total_to_calculate_from.compareTo(BigDecimal.ZERO) != 0) {
+                            for (Map.Entry<String, BigDecimal> entry_to_recalculate : equalValueToCalculate.entrySet()) {
+                                Map<BigDecimal, List<String>> calculated_home_values = new HashMap<>();
+                                for (Map.Entry<BigDecimal, List<String>> entry : valuesToCalculateWithMap.entrySet()) {
+                                    BigDecimal ratio = entry.getKey().divide(total_to_calculate_from, BigDecimal.ROUND_HALF_EVEN);
+                                    BigDecimal result = ratio.multiply(entry_to_recalculate.getValue());
+                                    calculated_home_values.put(result, entry.getValue());
+                                }
 
+//                                System.out.println(getLineNumber() + " -> Home values calculated[houses, Link]: " + calculated_home_values);
 
+                                BigDecimal number_of_homes_validator = new BigDecimal(0);
+                                for (Map.Entry<BigDecimal, List<String>> calculated_home_value : calculated_home_values.entrySet()) {
+                                    Record r = new Record();
+                                    r.houses = calculated_home_value.getKey().setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                                    r.year = records.get(entry_to_recalculate.getKey()).year;
+                                    r.links = calculated_home_value.getValue();
+                                    r.id = entry_to_recalculate.getKey() + r.year + r.links.toString() + r.houses;
+                                    number_of_homes_validator = number_of_homes_validator.add(r.houses);
 
-                        // Note: not sure if this is better instead of what is defined above.
-//                        Map<String, Set<String>> record_id_codes_to_use_map = new HashMap<>();
-//                        for(String link : record.getValue().links){
-//                            record_id_codes_to_use_map.put(link, codesToIds.get(link));
-//                        }
-//
-//                        Map<String, Set<String>> record_id_duplicates = new HashMap<>();
-//                        Map<String, Set<String>> record_id_uniques = new HashMap<>();
-//                        for(Map.Entry<String, Set<String>> record_id_entry : record_id_codes_to_use_map.entrySet()){
-//                            record_id_duplicates.put()
-//                        }
-
-                        /**
-                         *
-                         * 1840;HO0010A-HO0010B-HO2240;4437;4.10689
-                         * 1795;HO0010A-HO0010B-HO2240;3759.20035724065;4.10689
-                         *
-                         * 1632;HO0010A;3278;0.50367882
-                         * 1632;HO0010B;112;
-                         * 1632;HO2240;15;1.558612513
-                         *
-                         * HO2240=[933, 1130, 274]
-                         * HO0010A=[1128, 933, 274]
-                         * HO0010B=[1129, 933, 274]
-                         * record_id_codes_to_use = [274,933,1128,1129,1130]
-                         *
-                         * */
+                                    if (!recordsToAdd.containsKey(r.id)) {
+//                                        System.out.println(getLineNumber() + " -> " + r.toString());
+                                        recordsToAdd.put(r.id, r);
+                                    }
+                                }
+                                recordsToRemove.add(entry_to_recalculate.getKey());
+                            }
+                        }
                     }
                 }
 
@@ -918,6 +914,7 @@ public class Main {
                     records.remove(id);
                 }
 
+//                System.out.println(getLineNumber() + " -> " + recordsToRemove.toString());
                 logger.info(getLineNumber() + " -> " + recordsToRemove.toString());
                 recordsToRemove.clear();
 
@@ -932,6 +929,7 @@ public class Main {
                     records.put(Integer.toString(record_id_counter), record_to_add.getValue());
                     record_id_counter++;
                 }
+                System.out.println(getLineNumber() + " -> " + recordsToAdd.toString());
                 recordsToAdd.clear();
 
                 for (Record record_one : recordsToAdd.values()) {
@@ -960,13 +958,36 @@ public class Main {
                 System.out.println(getLineNumber() + " -> New number of homes is: " + number_of_homes);
                 logger.info(getLineNumber() + " -> New number of homes is: " + number_of_homes);
 
+                for (Map.Entry<String, Set<String>> code_to_id : codesToIds.entrySet()) {
+                    if (records_to_alter.containsAll(code_to_id.getValue())) {
+                        for (Record record : records.values()) {
+                            if (code_to_id.getValue().contains(record.id)) {
+                                if (codeHierarchy.entrySet().stream().anyMatch(map -> map.getValue().contains(code_to_id.getKey()))) {
+                                    for (Map.Entry<String, Set<String>> hier_entry : codeHierarchy.entrySet()) {
+                                        String parent = "";
+                                        for (Map.Entry<String, Set<String>> code_hierarchy_entry : codeHierarchy.entrySet()) {
+                                            if (code_hierarchy_entry.getValue().contains(code_to_id.getKey())) {
+                                                record.links.remove(code_to_id.getKey());
+                                                parent = code_hierarchy_entry.getKey();
+                                            }
+                                        }
+                                        if (!parent.equals("") && !record.links.contains(parent)) {
+                                            record.links.add(parent);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 int duplicate_link_code_validator = 0;
                 for (Record record : records.values()) {
                     if (record.links.size() > 1) {
                         duplicate_link_code_validator++;
                     }
                 }
-                duplicate_link_code_validator = 0;
+//                duplicate_link_code_validator = 0;
 
 //                System.out.println(getLineNumber() + " -> " + duplicate_link_code_validator + " vs " + number_of_records_with_multiple_links);
                 logger.info(getLineNumber() + " -> " + +duplicate_link_code_validator + " vs " + number_of_records_with_multiple_links);
@@ -1007,8 +1028,8 @@ public class Main {
             System.out.println(getLineNumber() + " -> Final number of records: " + records.size());
 //            System.out.println(getLineNumber() + " -> Number of records added: " + recordsToAdd.size() + " vs number of records deleted " + recordsToRemove.size());
 
-            System.out.println(getLineNumber() + " -> Diff between records with two or less lines is: " + number_of_homes_after_processing.subtract(number_of_homes_before_processing) + " By using: " + number_of_homes_before_processing + " vs " + number_of_homes_after_processing);
-            System.out.println(getLineNumber() + " -> Diff between altered records with two or less lines is: " + number_of_homes_being_altered_after_processing.subtract(number_of_homes_being_altered_before_processing) + " By using: " + number_of_homes_being_altered_before_processing + " vs " + number_of_homes_being_altered_after_processing);
+            System.out.println(getLineNumber() + " -> Diff between records with two or less links is: " + number_of_homes_after_processing.subtract(number_of_homes_before_processing) + " By using: " + number_of_homes_before_processing + " vs " + number_of_homes_after_processing);
+            System.out.println(getLineNumber() + " -> Diff between altered records with two or less links is: " + number_of_homes_being_altered_after_processing.subtract(number_of_homes_being_altered_before_processing) + " By using: " + number_of_homes_being_altered_before_processing + " vs " + number_of_homes_being_altered_after_processing);
 
             /** Looping through the link codes combined with the ids belonging to the code */
             for (String entry : codes) {
@@ -1065,38 +1086,38 @@ public class Main {
             }
 
             // NOTE using for testing purposes
-//            for(Integer year : years_from_data) {
-//                for (Record record : records.values()) {
-//                    if(record.year == year) {
-//                        List<String> dorpenOutput = new ArrayList<>();
-//                        for (String s : headerRow) {
-//                            try {
-//                                switch (s) {
-//                                    case "YEAR":
-//                                        dorpenOutput.add(Integer.toString(record.year));
-//                                        break;
-//                                    case "LINK":
-//                                        dorpenOutput.add(record.links.toString());
-//                                        break;
-//                                    case "HOUSES":
-//                                        dorpenOutput.add(record.houses.toString());
-//                                        break;
-//                                    case "KM2":
-//                                        dorpenOutput.add(record.km2.toString());
-//                                        break;
-//                                    default:
-//                                        break;
-//                                }
-//                            } catch (Exception e) {
-//                                dorpenOutput.add("N/A");
-//                            }
-//                        }
-//                        csvPrinter.printRecord(dorpenOutput);
-//                    }
-//                }
-//            }
-//            csvPrinter.flush();
-//            csvPrinter.close();
+            for(Integer year : years_from_data) {
+                for (Record record : records.values()) {
+                    if(record.year == year) {
+                        List<String> dorpenOutput = new ArrayList<>();
+                        for (String s : headerRow) {
+                            try {
+                                switch (s) {
+                                    case "YEAR":
+                                        dorpenOutput.add(Integer.toString(record.year));
+                                        break;
+                                    case "LINK":
+                                        dorpenOutput.add(record.links.toString());
+                                        break;
+                                    case "HOUSES":
+                                        dorpenOutput.add(record.houses.toString());
+                                        break;
+                                    case "KM2":
+                                        dorpenOutput.add(record.km2.toString());
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            } catch (Exception e) {
+                                dorpenOutput.add("N/A");
+                            }
+                        }
+                        csvPrinter.printRecord(dorpenOutput);
+                    }
+                }
+            }
+            csvPrinter.flush();
+            csvPrinter.close();
 
 
 //            System.out.println(getLineNumber() + " -> Checking the records!");
@@ -1115,37 +1136,37 @@ public class Main {
 //                }
 //            }
 
-            // NOTE Commented for testing purposes.
-            /** Converts the dorpenCollected so it can be saved in the CSV file! */
-            for (Map.Entry<String, VillageComplex> dorpCollected : dorpenCollected.entrySet()) {
-                List<String> dorpenOutput = new ArrayList<>();
-                for (String s : headerRow) {
-                    try {
-                        switch (s) {
-                            case "Code":
-                                dorpenOutput.add(dorpCollected.getValue().linkCode.key);
-                                break;
-                            default:
-                                if (dorpCollected.getValue().yearMap.get(s).key.equals("0")) {
-                                    dorpenOutput.add("N/A");
-//                                    System.out.println(getLineNumber() + " -> Number of homes is zero for: " + dorpCollected.getKey());
-//                                    logger.info(getLineNumber() + " -> Number of homes is zero for: " + dorpCollected.getKey());
-//                                    String numberOfHouses = handleHousesBeingZero(dorpCollected, s);
-//                                    dorpenOutput.add(numberOfHouses);
-//                                    dorpCollected.getValue().yearMap.get(s).key = numberOfHouses;
-                                } else {
-                                    dorpenOutput.add(dorpCollected.getValue().yearMap.get(s).key);
-                                }
-                                break;
-                        }
-                    } catch (NullPointerException e) {
-                        dorpenOutput.add("N/A");
-                    }
-                }
-                csvPrinter.printRecord(dorpenOutput);
-            }
-            csvPrinter.flush();
-            csvPrinter.close();
+//            // NOTE Commented for testing purposes.
+//            /** Converts the dorpenCollected so it can be saved in the CSV file! */
+//            for (Map.Entry<String, VillageComplex> dorpCollected : dorpenCollected.entrySet()) {
+//                List<String> dorpenOutput = new ArrayList<>();
+//                for (String s : headerRow) {
+//                    try {
+//                        switch (s) {
+//                            case "Code":
+//                                dorpenOutput.add(dorpCollected.getValue().linkCode.key);
+//                                break;
+//                            default:
+//                                if (dorpCollected.getValue().yearMap.get(s).key.equals("0")) {
+//                                    dorpenOutput.add("N/A");
+////                                    System.out.println(getLineNumber() + " -> Number of homes is zero for: " + dorpCollected.getKey());
+////                                    logger.info(getLineNumber() + " -> Number of homes is zero for: " + dorpCollected.getKey());
+////                                    String numberOfHouses = handleHousesBeingZero(dorpCollected, s);
+////                                    dorpenOutput.add(numberOfHouses);
+////                                    dorpCollected.getValue().yearMap.get(s).key = numberOfHouses;
+//                                } else {
+//                                    dorpenOutput.add(dorpCollected.getValue().yearMap.get(s).key);
+//                                }
+//                                break;
+//                        }
+//                    } catch (NullPointerException e) {
+//                        dorpenOutput.add("N/A");
+//                    }
+//                }
+//                csvPrinter.printRecord(dorpenOutput);
+//            }
+//            csvPrinter.flush();
+//            csvPrinter.close();
         }
 //        catch (Exception e) {
 //            System.out.println(getLineNumber() + " -> " + e);
