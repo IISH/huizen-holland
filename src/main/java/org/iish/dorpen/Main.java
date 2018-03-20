@@ -5,7 +5,6 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import java.io.*;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.text.*;
 import java.util.*;
@@ -22,7 +21,6 @@ public class Main {
     private static Set<String> recordsToRemove = new TreeSet<>();
     private static final Map<String, Record> recordsToAdd = new HashMap<>();
     private static final Set<Integer> years_from_data = new TreeSet<>();
-    private static List<String> recordsThatStartedWithZeroHomes = new ArrayList<>();
 
     private static final CSVFormat csvFormat = CSVFormat.EXCEL
             .withFirstRecordAsHeader()
@@ -33,13 +31,11 @@ public class Main {
     /**
      * The main method to start it all
      *
-     * @param args
-     * @throws Exception
+     * @param args String[] containing the file paths to load and the file path to write to
+     * @throws Exception Exception for when the data is not valid to run the code
      */
     public static void main(String[] args) throws Exception {
         DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-        DateFormat dateFormatLogFile = new SimpleDateFormat("HH-mm-ss");
-        DateFormat dateFormatLogMap = new SimpleDateFormat("yyyy-MM-dd");
         Date date = new Date();
         System.out.println(dateFormat.format(date)); //2016/11/16 12:08:43
 
@@ -61,8 +57,8 @@ public class Main {
     /**
      * Converts the number given to a local BigDecimal
      *
-     * @param number String
-     * @return BigDecimal
+     * @param number String The number to convert to the local format
+     * @return BigDecimal The BigDecimal converted to the local format
      */
     private static BigDecimal convertToLocale(String number) {
         DecimalFormatSymbols symbols = new DecimalFormatSymbols();
@@ -76,8 +72,8 @@ public class Main {
     /**
      * Loads the data from the csv file
      *
-     * @param csvPath
-     * @throws Exception
+     * @param csvPath String The path to the CSV file which contains the data to be processed
+     * @throws Exception Exception thrown when the data is incorrect
      */
     private static void loadData(String csvPath) throws Exception {
         CSVParser parser = CSVParser.parse(new File(csvPath), Charset.forName("UTF-8"), csvFormat);
@@ -85,9 +81,9 @@ public class Main {
             Record r = new Record();
             r.id = Integer.toString(record_id_counter);
             r.year = new Integer(record.get("YEAR"));
-            r.houses = record.get("HOUSES") != null ? new BigDecimal(record.get("HOUSES")) : new BigDecimal(0);
-            numberOfHouses = numberOfHouses.add(r.houses);
-            r.km2 = record.get("KM2") != null ? convertToLocale(record.get("KM2")).setScale(3, BigDecimal.ROUND_HALF_EVEN) : null; //.setScale(3, BigDecimal.ROUND_HALF_EVEN) : null;
+            r.houses = record.get("HOUSES") != null ? new BigDecimal(record.get("HOUSES")) : null;
+            numberOfHouses = r.houses != null ?  numberOfHouses.add(r.houses) : numberOfHouses.add(new BigDecimal(0));
+            r.km2 = record.get("KM2") != null ? convertToLocale(record.get("KM2")).setScale(3, BigDecimal.ROUND_HALF_EVEN) : null;
             if (record.get("LINK") != null) {
                 String[] links = record.get("LINK").split("-");
                 for (String code : links) {
@@ -134,7 +130,7 @@ public class Main {
     /**
      * Sets the parent relation for each of the link codes
      *
-     * @param code
+     * @param code String The Link code to update
      */
     private static void setParentRelation(String code) {
         if (code.length() == 6)
@@ -158,7 +154,7 @@ public class Main {
     /**
      * Updates the links so the lowest possible is given, and it is possible to work from down up
      *
-     * @param code
+     * @param code String The Link code to update
      */
     private static void updateLinksForCode(String code) {
         if (!codes.contains(code)) {
@@ -179,8 +175,8 @@ public class Main {
     /**
      * Exports the information to a csv file.
      *
-     * @param exportPath
-     * @throws Exception
+     * @param exportPath String the path to which the export is exported
+     * @throws Exception NullPointerException is caught when an exception is thrown.
      */
     private static void export(String exportPath) throws Exception {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(exportPath))) {
@@ -192,12 +188,10 @@ public class Main {
 //            headerRow.add("HOUSES");
 //            headerRow.add("KM2");
 
-            // NOTE commented for testing!
-            // ################################# //
             headerRow.add("Code");
-            List<String> temp_list = years_from_data.stream().sorted((t1, t2) -> t1 <= t2 ? -1 : 1).map(map -> Integer.toString(map)).collect(Collectors.toList());
+            @SuppressWarnings("ComparatorMethodParameterNotUsed")
+            List<String> temp_list = years_from_data.stream().sorted((t1, t2) -> (t1 <= t2) ? -1 : 1).map(map -> Integer.toString(map)).collect(Collectors.toList());
             headerRow.addAll(temp_list);
-            // ################################# //
 
             csvPrinter.printRecord(headerRow);
 
@@ -263,186 +257,66 @@ public class Main {
             // Updating the lists so there are no wrong calculations
             codeHierarchy.clear();
             codesToIds.clear();
-            for (Record record : records.values()) {
-                for (String code : record.links) {
-                    Set<String> ids = codesToIds.getOrDefault(code, new HashSet<>());
-                    ids.add(record.id);
-                    codesToIds.put(code, ids);
-
-                    setParentRelation(code);
-                }
-            }
+            updateLinkRelations();
             updateLinks();
-
-            BigDecimal number_of_homes_before_processing = new BigDecimal(0);
-            for (Record record : records.values()) {
-                number_of_homes_before_processing = number_of_homes_before_processing.add(record.houses);
-            }
 
             Collections.sort(codes);
 
-            BigDecimal number_of_homes_being_altered_before_processing = new BigDecimal(0);
-            BigDecimal number_of_homes_being_altered_after_processing = new BigDecimal(0);
             boolean tried_with_number_of_homes = false;
             while (number_of_records_with_multiple_links != 0) {
 
                 for (Map.Entry<String, Record> record : records.entrySet()) {
                     if (record.getValue().links.size() == 2) {
                         Map<String, Set<String>> code_map = new TreeMap<>();
-                        for (String link : record.getValue().links) {
-                            for (Map.Entry<String, Set<String>> codeToIdEntry : codesToIds.entrySet()) {
-                                if (codeToIdEntry.getKey().equals(link)) {
-                                    if (code_map.entrySet().stream().noneMatch(map -> map.getValue().equals(codeToIdEntry))) {
-                                        code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
-                                    }
-                                } else {
-                                    List<Set<String>> childLinks = codeHierarchy.entrySet().stream().filter(map -> map.getKey().equals(link)).map(Map.Entry::getValue).collect(Collectors.toList());
-                                    if (childLinks.size() > 0) {
-                                        for (String child : childLinks.get(0)) {
-                                            if (codeToIdEntry.getKey().equals(child)) {
-                                                if (code_map.entrySet().stream().noneMatch(map -> map.getValue().contains(child)) && codeToIdEntry.getValue().contains(record.getKey())) {
-                                                    code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        fillCodeMapBasedOnCodeToIds(record, code_map);
 
                         // Checking if the code_map contains all links of one parent before combining them
-                        for (String link : record.getValue().links) {
-                            Set<String> testSet = codeHierarchy.get(link.substring(0, link.length() - 1)) != null ? codeHierarchy.get(link.substring(0, link.length() - 1)) : new TreeSet<>();
-                            if (code_map.values().containsAll(testSet)) {
-
-                                Map<String, Set<String>> code_map_to_append = new TreeMap<>();
-                                Set<String> codes_to_remove = new TreeSet<>();
-                                Map.Entry<String, Set<String>> firstEntry = code_map.entrySet().iterator().next();
-                                Iterator<Map.Entry<String, Set<String>>> it = code_map.entrySet().iterator();
-                                while (it.hasNext()) {
-                                    Map.Entry<String, Set<String>> next = it.next();
-                                    if (!next.equals(firstEntry)) {
-                                        if (next.getKey().startsWith("HO")) {
-                                            if (next.getKey().substring(0, 6).equals(firstEntry.getKey().substring(0, 6)) && next.getValue().equals(firstEntry.getValue())) {
-                                                codes_to_remove.add(firstEntry.getKey());
-                                                codes_to_remove.add(next.getKey());
-                                                code_map_to_append.put(firstEntry.getKey().substring(0, 6), firstEntry.getValue());
-                                            } else {
-                                                codes_to_remove.clear();
-                                            }
-                                        } else {
-                                            if (next.getKey().equals(firstEntry.getKey()) && next.getValue().equals(firstEntry.getValue())) {
-                                                codes_to_remove.add(firstEntry.getKey());
-                                                codes_to_remove.add(next.getKey());
-                                                code_map_to_append.put(firstEntry.getKey(), firstEntry.getValue());
-                                            } else {
-                                                codes_to_remove.clear();
-                                            }
-                                        }
-                                        firstEntry = next;
-                                    }
-                                }
-//                                System.out.println(getLineNumber() + " -> code_map" + code_map);
-
-                                for (String code_to_remove : codes_to_remove) {
-                                    code_map.remove(code_to_remove);
-                                }
-                                code_map.putAll(code_map_to_append);
-                            }
-                        }
+                        determineCodesToRemoveAndToAppend(record, code_map);
 
                         // Gets the unique values and the duplicate values
                         Set<String> duplicates = null;
                         Set<String> uniques = null;
-                        for (String key : code_map.keySet()) {
-                            if (duplicates == null && uniques == null) {
-                                duplicates = new TreeSet<>(code_map.get(key));
-                                uniques = new TreeSet<>(code_map.get(key));
-                            } else {
-                                duplicates.retainAll(code_map.get(key));
-                                uniques.addAll(code_map.get(key));
-                            }
-                        }
+                        duplicates = collectDuplicateLinkCodes(duplicates, code_map);
+                        uniques = collectUniquesLinkCodes(uniques, code_map);
                         uniques.removeAll(duplicates);
 
                         // Removes the unique codes for where the record doesn't contain the specific Link code,
                         // so it doesn't use a child code for a parent or vice verse
-                        List<String> link_codes_uniques = new ArrayList<>();
-                        for (Record record_unique : records.values()) {
-                            if (uniques.contains(record_unique.id)) {
-                                for (String s : record_unique.links) {
-                                    if (record.getValue().links.contains(s)) {
-                                        link_codes_uniques.addAll(record_unique.links);
-                                    } else {
-                                        uniques.remove(record_unique.id);
-                                    }
-                                }
-                            }
-                        }
+                        removeIncompleteChildLinkCodes(record, uniques);
 
                         // Looping through the unique codes to determine duplicate years in the Link codes
                         TreeSet<Integer> years = new TreeSet<>();
 
                         Map<String, BigDecimal> uniqueValuesToCalculateFrom = new HashMap<>();
-                        for (String unique_code : uniques) {
-                            for (Map.Entry<String, Record> unique_record : records.entrySet()) {
-                                if (unique_record.getValue().id.equals(unique_code)) {
-                                    uniqueValuesToCalculateFrom.put(unique_code, unique_record.getValue().houses);
-                                    if (!years.add(unique_record.getValue().year)) {
-                                        years.add(unique_record.getValue().year);
-                                    }
-                                }
-                            }
-                        }
+                        determineUniqueValuesToCalculateFrom(uniques, years, uniqueValuesToCalculateFrom);
 
                         // Determine the value to calculate. These are the codes that are the same, ergo: the codes that need to be split up.
-                        TreeSet<Integer> duplicateYears = new TreeSet<>();
                         Map<String, BigDecimal> equalValueToCalculate = new HashMap<>();
                         for (String duplicate : duplicates) {
                             for (Map.Entry<String, Record> duplicate_record : records.entrySet()) {
                                 if (duplicate_record.getValue().id.equals(duplicate)) {
                                     equalValueToCalculate.put(duplicate, duplicate_record.getValue().houses);
-                                    duplicateYears.add(duplicate_record.getValue().year);
                                 }
                             }
                         }
 
-                        Integer yearToCheck = Integer.MAX_VALUE;
                         Integer year_diff = Integer.MAX_VALUE;
-                        Integer yearToCalculateWith = Integer.MAX_VALUE;
                         Integer year_temp_something_dunno = 0;
 
-                        /** Loop through the map containing the values to calculate */
-                        /** Looping through the records to check which record corresponds with the valueToCalculate ID */
-                        for (Map.Entry<String, Record> calculate_record : records.entrySet()) {
-                            /** Get the year to perform the check upon */
-                            if (equalValueToCalculate.containsKey(calculate_record.getValue().id)) {
-                                yearToCheck = calculate_record.getValue().year;
-
-                                /** Determine which year is closest to the year to calculate the values for */
-                                for (Integer yearToCalculateFrom : years) {
-                                    Integer timeBetweenYears = yearToCalculateFrom - yearToCheck;
-                                    if (timeBetweenYears < 0) {
-                                        timeBetweenYears = timeBetweenYears * -1;
-                                    }
-                                    if (timeBetweenYears < year_diff) {
-                                        year_temp_something_dunno = yearToCalculateFrom;
-                                        year_diff = timeBetweenYears;
-                                        yearToCalculateWith = calculate_record.getValue().year;
-                                    }
-                                }
-                            }
-
-                        }
+                        // Loop through the map containing the values to calculate
+                        // Looping through the records to check which record corresponds with the valueToCalculate ID
+                        year_temp_something_dunno = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, year_temp_something_dunno);
 
                         Map<BigDecimal, List<String>> valuesToCalculateWithMap = new HashMap<>();
-                        /** Loop through the Map of unique values to perform the calculation */
+                        // Loop through the Map of unique values to perform the calculation
                         for (Map.Entry<String, BigDecimal> uniqueValue : uniqueValuesToCalculateFrom.entrySet()) {
-                            /** Loop through the records to get the record for which the id and year are the same as the given unique value */
+                            // Loop through the records to get the record for which the id and year are the same as the given unique value
                             for (Map.Entry<String, Record> unique_value_record : records.entrySet()) {
                                 if (unique_value_record.getValue().id.equals(uniqueValue.getKey()) && unique_value_record.getValue().year == year_temp_something_dunno) {
-                                    if (uniqueValue.getValue().compareTo(BigDecimal.ZERO) != 0) {
-                                        valuesToCalculateWithMap.put(uniqueValue.getValue(), unique_value_record.getValue().links);
+                                    if(uniqueValue.getValue() != null) {
+                                        if (uniqueValue.getValue().compareTo(BigDecimal.ZERO) != 0) {
+                                            valuesToCalculateWithMap.put(uniqueValue.getValue(), unique_value_record.getValue().links);
+                                        }
                                     }
                                 }
                             }
@@ -470,18 +344,12 @@ public class Main {
                                     result = new Pair(new BigDecimal(0), new BigDecimal(0));
                                 }
 
-                                BigDecimal result_number_of_homes = result.lowestNumber.add(result.highestNumber);
                                 if (result.lowestNumber.compareTo(BigDecimal.ZERO) != 0 || result.highestNumber.compareTo(BigDecimal.ZERO) != 0) {
 
                                     // Determine the highest number of the returned value after the calculation
                                     Map<List<String>, BigDecimal> resultMap = new HashMap<>();
                                     resultMap.put(valuesToCalculateWithMap.get(values.get(0)), result.lowestNumber);
                                     resultMap.put(valuesToCalculateWithMap.get(values.get(1)), result.highestNumber);
-                                    List<String> linkLowestNumber = valuesToCalculateWithMap.get(values.get(0));
-                                    List<String> linkHighestNumber = new ArrayList<>();
-                                    if (valuesToCalculateWithMap.size() > 1) {
-                                        linkHighestNumber = valuesToCalculateWithMap.get(values.get(1));
-                                    }
 
                                     if (valueToCalculate.getKey().equals(record.getKey())) {
                                         for (String record_link : record.getValue().links) {
@@ -511,30 +379,23 @@ public class Main {
                                         r.id = record.getKey() + record.getValue().year + r.links.toString() + r.houses;
                                         if(!recordsToAdd.containsKey(r.id)){
                                             recordsToAdd.put(r.id, r);
-                                            recordsThatStartedWithZeroHomes.add(link);
                                         }
                                     }
                                     recordsToRemove.add(record.getValue().id);
                                 }
                             }
-                            number_of_homes_being_altered_before_processing = number_of_homes_being_altered_before_processing.add(record.getValue().houses);
                         } else if ((valuesToCalculateWithMap.size() <= 1 || valuesToCalculateWithMap.size() > 2) && tried_with_number_of_homes) {
                             Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
                             BigDecimal totalSquareKilometres = new BigDecimal(0);
-                            for (Map.Entry<String, Set<String>> code_to_id : code_map.entrySet()) {
-                                for (SquareKilometreRecord srecord : squareKilometreRecords) {
-                                    if (srecord.linkCode.equals(code_to_id.getKey())) {
-                                        if (srecord.km2.get(record.getValue().year) != null) {
-                                            squareKilometresToCalculateWithMap.put(code_to_id.getKey(), srecord.km2.get(record.getValue().year));
-                                            totalSquareKilometres = totalSquareKilometres.add(srecord.km2.get(record.getValue().year));
-                                        }
-                                    }
-                                }
-                            }
+                            totalSquareKilometres = collectSquareKmsToCalculateWith(record, code_map, squareKilometresToCalculateWithMap, totalSquareKilometres);
                             if (squareKilometresToCalculateWithMap.size() > 0 && !totalSquareKilometres.equals(new BigDecimal(0))) {
                                 for (Map.Entry<String, BigDecimal> entry : squareKilometresToCalculateWithMap.entrySet()) {
                                     BigDecimal ratio = entry.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
-                                    BigDecimal numberOfHomes = record.getValue().houses.multiply(ratio).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                                    BigDecimal numberOfHomes;
+                                    if(record.getValue().houses != null)
+                                        numberOfHomes = record.getValue().houses.multiply(ratio).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                                    else
+                                        numberOfHomes = BigDecimal.ZERO;
                                     Record newRecord = new Record();
                                     newRecord.year = record.getValue().year;
                                     newRecord.links.add(entry.getKey());
@@ -554,93 +415,20 @@ public class Main {
                         }
                     } else if (record.getValue().links.size() > 2) {
                         Map<String, Set<String>> code_map = new TreeMap<>();
-                        for (String link : record.getValue().links) {
-                            for (Map.Entry<String, Set<String>> codeToIdEntry : codesToIds.entrySet()) {
-                                if (codeToIdEntry.getKey().equals(link)) {
-                                    if (code_map.entrySet().stream().noneMatch(map -> map.getValue().equals(codeToIdEntry))) {
-                                        code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
-                                    }
-                                } else {
-                                    List<Set<String>> childLinks = codeHierarchy.entrySet().stream().filter(map -> map.getKey().equals(link)).map(Map.Entry::getValue).collect(Collectors.toList());
-                                    if (childLinks.size() > 0) {
-                                        for (String child : childLinks.get(0)) {
-                                            if (codeToIdEntry.getKey().equals(child)) {
-                                                if (code_map.entrySet().stream().noneMatch(map -> map.getValue().contains(child)) && codeToIdEntry.getValue().contains(record.getKey())) {
-                                                    code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        fillCodeMapBasedOnCodeToIds(record, code_map);
 
-                        for (String link : record.getValue().links) {
-                            Set<String> testSet = codeHierarchy.get(link.substring(0, link.length() - 1)) != null ? codeHierarchy.get(link.substring(0, link.length() - 1)) : new TreeSet<>();
-                            if (code_map.values().containsAll(testSet)) {
-                                Map<String, Set<String>> code_map_to_append = new TreeMap<>();
-                                Set<String> codes_to_remove = new TreeSet<>();
-                                Map.Entry<String, Set<String>> firstEntry = code_map.entrySet().iterator().next();
-                                Iterator<Map.Entry<String, Set<String>>> it = code_map.entrySet().iterator();
-                                while (it.hasNext()) {
-                                    Map.Entry<String, Set<String>> next = it.next();
-                                    if (!next.equals(firstEntry)) {
-                                        if (next.getKey().startsWith("HO")) {
-                                            if (next.getKey().substring(0, 6).equals(firstEntry.getKey().substring(0, 6)) && next.getValue().equals(firstEntry.getValue())) {
-                                                codes_to_remove.add(firstEntry.getKey());
-                                                codes_to_remove.add(next.getKey());
-                                                code_map_to_append.put(firstEntry.getKey().substring(0, 6), firstEntry.getValue());
-                                            } else {
-                                                codes_to_remove.clear();
-                                            }
-                                        } else {
-                                            if (next.getKey().equals(firstEntry.getKey()) && next.getValue().equals(firstEntry.getValue())) {
-                                                codes_to_remove.add(firstEntry.getKey());
-                                                codes_to_remove.add(next.getKey());
-                                                code_map_to_append.put(firstEntry.getKey(), firstEntry.getValue());
-                                            } else {
-                                                codes_to_remove.clear();
-                                            }
-                                        }
-                                        firstEntry = next;
-                                    }
-                                }
-
-                                for (String code_to_remove : codes_to_remove) {
-                                    code_map.remove(code_to_remove);
-                                }
-                                code_map.putAll(code_map_to_append);
-                            }
-                        }
+                        determineCodesToRemoveAndToAppend(record, code_map);
 
                         // Gets the unique values and the duplicate values
                         Set<String> duplicates = null;
                         Set<String> uniques = null;
-                        for (String key : code_map.keySet()) {
-                            if (duplicates == null && uniques == null) {
-                                duplicates = new TreeSet<>(code_map.get(key));
-                                uniques = new TreeSet<>(code_map.get(key));
-                            } else {
-                                duplicates.retainAll(code_map.get(key));
-                                uniques.addAll(code_map.get(key));
-                            }
-                        }
+                        duplicates = collectDuplicateLinkCodes(duplicates, code_map);
+                        uniques = collectUniquesLinkCodes(uniques, code_map);
                         uniques.removeAll(duplicates);
 
                         // Removes the unique codes for where the record doesn't contain the specific Link code,
                         // so it doesn't use a child code for a parent or vice verse
-                        List<String> link_codes_uniques = new ArrayList<>();
-                        for (Record record_unique : records.values()) {
-                            if (uniques.contains(record_unique.id)) {
-                                for (String s : record_unique.links) {
-                                    if (record.getValue().links.contains(s)) {
-                                        link_codes_uniques.addAll(record_unique.links);
-                                    } else {
-                                        uniques.remove(record_unique.id);
-                                    }
-                                }
-                            }
-                        }
+                        removeIncompleteChildLinkCodes(record, uniques);
                         Boolean do_links_compare = true;
                         List<Record> recordList = new ArrayList<>();
                         for (String duplicate : duplicates) {
@@ -668,56 +456,25 @@ public class Main {
                             TreeSet<Integer> years = new TreeSet<>();
 
                             Map<String, BigDecimal> uniqueValuesToCalculateFrom = new HashMap<>();
-                            for (String unique_code : uniques) {
-                                for (Map.Entry<String, Record> unique_record : records.entrySet()) {
-                                    if (unique_record.getValue().id.equals(unique_code)) {
-                                        uniqueValuesToCalculateFrom.put(unique_code, unique_record.getValue().houses);
-                                        if (!years.add(unique_record.getValue().year)) {
-                                            years.add(unique_record.getValue().year);
-                                        }
-                                    }
-                                }
-                            }
+                            determineUniqueValuesToCalculateFrom(uniques, years, uniqueValuesToCalculateFrom);
 
 
                             // Determine the value to calculate. These are the codes that are the same, ergo: the codes that need to be split up.
-                            TreeSet<Integer> duplicateYears = new TreeSet<>();
                             Map<String, BigDecimal> equalValueToCalculate = new HashMap<>();
                             for (String duplicate : duplicates) {
                                 for (Map.Entry<String, Record> duplicate_record : records.entrySet()) {
                                     if (duplicate_record.getValue().id.equals(duplicate)) {
                                         equalValueToCalculate.put(duplicate, duplicate_record.getValue().houses);
-                                        duplicateYears.add(duplicate_record.getValue().year);
                                     }
                                 }
                             }
 
-                            Integer yearToCheck = Integer.MAX_VALUE;
                             Integer year_diff = Integer.MAX_VALUE;
-                            Integer yearToCalculateWith = Integer.MAX_VALUE;
                             Integer year_temp_something_dunno = 0;
 
                             // Loop through the map containing the values to calculate
                             // Looping through the records to check which record corresponds with the valueToCalculate ID
-                            for (Map.Entry<String, Record> calculate_record : records.entrySet()) {
-                                // Get the year to perform the check upon
-                                if (equalValueToCalculate.containsKey(calculate_record.getValue().id)) {
-                                    yearToCheck = calculate_record.getValue().year;
-                                    // Determine which year is closest to the year to calculate the values for
-                                    for (Integer yearToCalculateFrom : years) {
-                                        Integer timeBetweenYears = yearToCalculateFrom - yearToCheck;
-                                        if (timeBetweenYears < 0) {
-                                            timeBetweenYears = timeBetweenYears * -1;
-                                        }
-                                        if (timeBetweenYears < year_diff) {
-                                            year_temp_something_dunno = yearToCalculateFrom;
-                                            year_diff = timeBetweenYears;
-                                            yearToCalculateWith = calculate_record.getValue().year;
-                                        }
-                                    }
-                                }
-
-                            }
+                            year_temp_something_dunno = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, year_temp_something_dunno);
 
                             Map<BigDecimal, List<String>> valuesToCalculateWithMap = new HashMap<>();
                             // Loop through the Map of unique values to perform the calculation
@@ -740,7 +497,11 @@ public class Main {
                                     Map<BigDecimal, List<String>> calculated_home_values = new HashMap<>();
                                     for (Map.Entry<BigDecimal, List<String>> entry : valuesToCalculateWithMap.entrySet()) {
                                         BigDecimal ratio = entry.getKey().divide(total_to_calculate_from, 9, BigDecimal.ROUND_HALF_EVEN);
-                                        BigDecimal result = ratio.multiply(entry_to_recalculate.getValue());
+                                        BigDecimal result;
+                                        if(entry_to_recalculate.getValue() != null)
+                                            result = ratio.multiply(entry_to_recalculate.getValue());
+                                        else
+                                            result = new BigDecimal(0);
                                         calculated_home_values.put(result, entry.getValue());
                                     }
 
@@ -758,22 +519,12 @@ public class Main {
                                         }
                                     }
                                     recordsToRemove.add(entry_to_recalculate.getKey());
-                                    number_of_homes_being_altered_before_processing = number_of_homes_being_altered_before_processing.add(entry_to_recalculate.getValue());
                                 }
                             }
                         } else {
                             Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
                             BigDecimal totalSquareKilometres = new BigDecimal(0);
-                            for (Map.Entry<String, Set<String>> code_to_id : code_map.entrySet()) {
-                                for (SquareKilometreRecord srecord : squareKilometreRecords) {
-                                    if (srecord.linkCode.equals(code_to_id.getKey())) {
-                                        if (srecord.km2.get(record.getValue().year) != null) {
-                                            squareKilometresToCalculateWithMap.put(code_to_id.getKey(), srecord.km2.get(record.getValue().year));
-                                            totalSquareKilometres = totalSquareKilometres.add(srecord.km2.get(record.getValue().year));
-                                        }
-                                    }
-                                }
-                            }
+                            totalSquareKilometres = collectSquareKmsToCalculateWith(record, code_map, squareKilometresToCalculateWithMap, totalSquareKilometres);
                             if (squareKilometresToCalculateWithMap.size() > 0 && !totalSquareKilometres.equals(new BigDecimal(0))) {
                                 for (Map.Entry<String, BigDecimal> entry : squareKilometresToCalculateWithMap.entrySet()) {
                                     BigDecimal ratio = entry.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
@@ -803,7 +554,6 @@ public class Main {
                 recordsToRemove.clear();
 
                 for (Map.Entry<String, Record> record_to_add : recordsToAdd.entrySet()) {
-                    number_of_homes_being_altered_after_processing = number_of_homes_being_altered_after_processing.add(record_to_add.getValue().houses);
                     record_to_add.getValue().id = Integer.toString(record_id_counter);
                     records.put(Integer.toString(record_id_counter), record_to_add.getValue());
                     record_id_counter++;
@@ -812,7 +562,7 @@ public class Main {
 
                 BigDecimal number_of_homes = new BigDecimal(0);
                 for (Record record : records.values()) {
-                    number_of_homes = number_of_homes.add(record.houses);
+                    number_of_homes = record.houses != null ? number_of_homes.add(record.houses) : number_of_homes.add(new BigDecimal(0));
                 }
 
                 int duplicate_link_code_validator = 0;
@@ -832,28 +582,17 @@ public class Main {
                     number_of_records_with_multiple_links = duplicate_link_code_validator;
                     codeHierarchy.clear();
                     codesToIds.clear();
-                    for (Record record : records.values()) {
-                        for (String code : record.links) {
-                            Set<String> ids = codesToIds.getOrDefault(code, new HashSet<>());
-                            ids.add(record.id);
-                            codesToIds.put(code, ids);
-
-                            setParentRelation(code);
-                        }
-                    }
+                    updateLinkRelations();
                     updateLinks();
                 }
             }
 
             BigDecimal number_of_homes = new BigDecimal(0);
-            BigDecimal number_of_homes_after_processing = new BigDecimal(0);
             for (Record record : records.values()) {
-                number_of_homes = number_of_homes.add(record.houses);
-                number_of_homes_after_processing = number_of_homes_after_processing.add(record.houses);
+                number_of_homes = record.houses != null ? number_of_homes.add(record.houses) : number_of_homes.add(BigDecimal.ZERO);
             }
             System.out.println("Final number of duplicate links is: " + number_of_records_with_multiple_links);
             System.out.println("Final number of homes is: " + number_of_homes);
-            System.out.println("Final number of records: " + records.size());
 
             // Looping through the link codes combined with the ids belonging to the code
             for (String entry : codes) {
@@ -881,11 +620,11 @@ public class Main {
                                     if (recordEntry.getValue().links.size() == 1) {
                                         village.linkCode.otherLinkCodes.addAll(recordEntry.getValue().links);
                                         SortedSet<String> set = new TreeSet<>(recordEntry.getValue().links);
-                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses.toString(), recordEntry.getValue().id, true, set));
+                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : 0, recordEntry.getValue().id, true, set));
                                     } else {
                                         village.linkCode.otherLinkCodes.addAll(recordEntry.getValue().links);
                                         SortedSet<String> set = new TreeSet<>(recordEntry.getValue().links);
-                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses.toString(), recordEntry.getValue().id, true, set));
+                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : 0, recordEntry.getValue().id, true, set));
                                     }
                                     break;
                                 } catch (NullPointerException e) {
@@ -899,7 +638,7 @@ public class Main {
                     // If so, it gets the code from the codeHierarchy, by checking if the codehierarchy code equals the beginning of the dorpencomplex code
                     if (village.linkCode.key.toString().length() > 6) {
                         for (Map.Entry<String, Set<String>> codeHierarchyEntry : codeHierarchy.entrySet()) {
-                            if (codeHierarchyEntry.getValue().contains(village.linkCode.key)) {
+                            if (codeHierarchyEntry.getValue().contains(village.linkCode.key.toString())) {
                                 dorpenCollected.put(village.linkCode.key.toString(), village);
                             }
                         }
@@ -944,7 +683,6 @@ public class Main {
 //            csvPrinter.flush();
 //            csvPrinter.close();
 
-            // NOTE Comment for testing purposes.
             // Converts the dorpenCollected so it can be saved in the CSV file!
             for (Map.Entry<String, VillageComplex> dorpCollected : dorpenCollected.entrySet()) {
                 List<String> dorpenOutput = new ArrayList<>();
@@ -956,11 +694,7 @@ public class Main {
                                 break;
                             default:
                                 if (new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).compareTo(BigDecimal.ZERO) == 0){
-                                    if(recordsThatStartedWithZeroHomes.contains(dorpCollected.getValue().linkCode.key.toString())){
-                                        dorpenOutput.add("0");
-                                    }else {
-                                        dorpenOutput.add("N/A");
-                                    }
+                                    dorpenOutput.add("0");
                                 } else {
                                     BigDecimal numberOfHomes = new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).setScale(3,BigDecimal.ROUND_HALF_EVEN);
                                     dorpenOutput.add(numberOfHomes.toString());
@@ -979,49 +713,225 @@ public class Main {
     }
 
     /**
-     * @param dorpCollected
-     * @param year
-     * @return
+     * Collects the square kilometres that are needed to calculate the new number of homes for the specific record.
+     * @param record Map.Entry<String, Record> contains the record entry to be checked from the list of records.
+     * @param code_map Map<String, Set<String>> contains the ids belonging to a specific Link Code
+     * @param squareKilometresToCalculateWithMap Map<String, BigDecimal> the map in which the square kilometres will be put along with the Link Code
+     * @param totalSquareKilometres BigDecimal in which the total of square kilometres for a specific Link Code is held.
+     * @return BigDecimal
      */
-    private static String handleHousesBeingZero(Map.Entry<String, VillageComplex> dorpCollected, String year) {
-        String result = "NULL";
-        String divider = "None";
-        BigDecimal proportionKM2 = new BigDecimal(Integer.MAX_VALUE).setScale(3, BigDecimal.ROUND_HALF_EVEN);
-        Record testRecord = new Record();
-        for (Map.Entry<String, Record> record : records.entrySet()) {
-            if (record.getValue().links.contains(dorpCollected.getKey()) && record.getValue().id.equals(dorpCollected.getValue().yearMap.get(year).value)) {
-                testRecord = record.getValue();
-            }
-        }
-        for (Map.Entry<String, Record> record : records.entrySet()) {
-            if (record.getValue().links.contains(dorpCollected.getKey()) && !record.getValue().id.equals(dorpCollected.getValue().yearMap.get(year).value)) {
-                /** Collect the proportion to calculate the empty value of dorpCollected with */
-                if (!record.getValue().houses.equals(new BigDecimal(0))) {
-                    BigDecimal houses = record.getValue().houses.setScale(3, RoundingMode.HALF_EVEN);
-                    if (record.getValue().km2 != null && testRecord.km2 != null) {
-                        BigDecimal km2 = record.getValue().km2.setScale(3, RoundingMode.HALF_EVEN);
-                        proportionKM2 = houses.divide(km2, RoundingMode.HALF_EVEN);
-                        divider = "km2";
-                        break;
+    private static BigDecimal collectSquareKmsToCalculateWith(Map.Entry<String, Record> record, Map<String, Set<String>> code_map, Map<String, BigDecimal> squareKilometresToCalculateWithMap, BigDecimal totalSquareKilometres) {
+        for (Map.Entry<String, Set<String>> code_to_id : code_map.entrySet()) {
+            for (SquareKilometreRecord srecord : squareKilometreRecords) {
+                if (srecord.linkCode.equals(code_to_id.getKey())) {
+                    if (srecord.km2.get(record.getValue().year) != null) {
+                        squareKilometresToCalculateWithMap.put(code_to_id.getKey(), srecord.km2.get(record.getValue().year));
+                        totalSquareKilometres = totalSquareKilometres.add(srecord.km2.get(record.getValue().year));
                     }
                 }
             }
         }
-        for (Map.Entry<String, Record> record : records.entrySet()) {
-            if (!divider.equals("None")) {
-                if (Integer.toString(record.getValue().year).equals(year)) {
-                    if (record.getValue().id.equals(dorpCollected.getValue().yearMap.get(year).value)) {
-                        if (record.getValue().km2 != null) {
-                            result = record.getValue().km2.multiply(proportionKM2).toString();
-                            break;
+        return totalSquareKilometres;
+    }
+
+    /**
+     * Determines the closest year with which the new number of homes will be calculated with.
+     * @param years TreeSet<Integer> holds the years belonging to the Link Codes
+     * @param equalValueToCalculate Map<String, BigDecimal> contains the values to calculate which have equal Link Codes.
+     * @param year_diff  Integer holds the difference of the closest years, needed to determine the closest year
+     * @param closest_year_to_calculate_from Integer will hold the closest year to calculate from
+     * @return Integer the closest year to calculate the new number of homes
+     */
+    private static Integer determineClosestYearForCalculatingNumberOfHomes(TreeSet<Integer> years, Map<String, BigDecimal> equalValueToCalculate, Integer year_diff, Integer closest_year_to_calculate_from) {
+        Integer yearToCheck;
+        for (Map.Entry<String, Record> calculate_record : records.entrySet()) {
+            // Get the year to perform the check upon */
+            if (equalValueToCalculate.containsKey(calculate_record.getValue().id)) {
+                yearToCheck = calculate_record.getValue().year;
+
+                // Determine which year is closest to the year to calculate the values for
+                for (Integer yearToCalculateFrom : years) {
+                    Integer timeBetweenYears = yearToCalculateFrom - yearToCheck;
+                    if (timeBetweenYears < 0) {
+                        timeBetweenYears = timeBetweenYears * -1;
+                    }
+                    if (timeBetweenYears < year_diff) {
+                        closest_year_to_calculate_from = yearToCalculateFrom;
+                        year_diff = timeBetweenYears;
+                    }
+                }
+            }
+
+        }
+        return closest_year_to_calculate_from;
+    }
+
+    /**
+     * Determines the unique values to calculate the new number of homes from
+     * @param uniques Set<String> holds the ids of the unique records, e.g. records with only one Link Code
+     * @param years TreeSet<Integer> holds the years belonging to the Link Code(s)
+     * @param uniqueValuesToCalculateFrom Map<String, BigDecimal> contains the unique values to calculate the new number of homes from.
+     */
+    private static void determineUniqueValuesToCalculateFrom(Set<String> uniques, TreeSet<Integer> years, Map<String, BigDecimal> uniqueValuesToCalculateFrom) {
+        for (String unique_code : uniques) {
+            for (Map.Entry<String, Record> unique_record : records.entrySet()) {
+                if (unique_record.getValue().id.equals(unique_code)) {
+                    uniqueValuesToCalculateFrom.put(unique_code, unique_record.getValue().houses);
+                    if (!years.add(unique_record.getValue().year)) {
+                        years.add(unique_record.getValue().year);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes ids from the unique Set if the Link Codes for that id don't complete the parent Link Code.
+     * @param record Map.Entry<String, Record> the record to check the link codes from
+     * @param uniques Set<String> the Set from which to remove the ids of incomplete Link Codes.
+     */
+    private static void removeIncompleteChildLinkCodes(Map.Entry<String, Record> record, Set<String> uniques) {
+        for (Record record_unique : records.values()) {
+            if (uniques.contains(record_unique.id)) {
+                for (String s : record_unique.links) {
+                    if (!record.getValue().links.contains(s)) {
+                        uniques.remove(record_unique.id);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Collects duplicate Link Codes, E.G. checks which Link Codes contain the same record ids and saves them to the duplicates set
+     * @param duplicates Set<String> contains the duplicate ids
+     * @param code_map Map<String, Set<String> contains the ids belonging to a Link Code
+     * @return Set<String> which contains the duplicate ids
+     */
+    private static Set<String> collectDuplicateLinkCodes(Set<String> duplicates, Map<String, Set<String>> code_map){
+        for (String key : code_map.keySet()) {
+            if (duplicates == null) {
+                duplicates = new TreeSet<>(code_map.get(key));
+            } else {
+                duplicates.retainAll(code_map.get(key));
+            }
+        }
+        return duplicates;
+    }
+
+    /**
+     * Collects unique Link Codes, E.G. checks which Link Codes don't contain the same record ids and saves them to the uniques set
+     * @param uniques Set<String> contains the unique ids
+     * @param code_map Map<String, Set<String> contains the ids belonging to a Link Code
+     * @return Set<String> which contains the unique ids
+     */
+    private static Set<String> collectUniquesLinkCodes(Set<String> uniques, Map<String, Set<String>> code_map){
+        for (String key : code_map.keySet()) {
+            if (uniques == null) {
+                uniques = new TreeSet<>(code_map.get(key));
+            } else {
+                uniques.addAll(code_map.get(key));
+            }
+        }
+        return uniques;
+    }
+
+    /**
+     * Determines the Link Codes to remove from the code_map and also the Link Codes to add to the code_map.
+     * Depending on whether or not the Link Codes are (complete) children of a parent Link Code
+     * @param record Map.Entry<String, Record> the entry to check for if the link codes complete the parent code
+     * @param code_map Map<String, Set<String> the map containing the Link Code with the ids that contain that Link Code
+     */
+    private static void determineCodesToRemoveAndToAppend(Map.Entry<String, Record> record, Map<String, Set<String>> code_map) {
+        for (String link : record.getValue().links) {
+            Set<String> testSet = codeHierarchy.get(link.substring(0, link.length() - 1)) != null ? codeHierarchy.get(link.substring(0, link.length() - 1)) : new TreeSet<>();
+            if (code_map.values().containsAll(testSet)) {
+
+                Map<String, Set<String>> code_map_to_append = new TreeMap<>();
+                Set<String> codes_to_remove = new TreeSet<>();
+                Map.Entry<String, Set<String>> firstEntry = code_map.entrySet().iterator().next();
+                for (Map.Entry<String, Set<String>> next : code_map.entrySet()) {
+                    if (!next.equals(firstEntry)) {
+                        if (next.getKey().startsWith("HO")) {
+                            if (next.getKey().substring(0, 6).equals(firstEntry.getKey().substring(0, 6)) && next.getValue().equals(firstEntry.getValue())) {
+                                codes_to_remove.add(firstEntry.getKey());
+                                codes_to_remove.add(next.getKey());
+                                code_map_to_append.put(firstEntry.getKey().substring(0, 6), firstEntry.getValue());
+                            } else {
+                                codes_to_remove.clear();
+                            }
+                        } else {
+                            if (next.getKey().equals(firstEntry.getKey()) && next.getValue().equals(firstEntry.getValue())) {
+                                codes_to_remove.add(firstEntry.getKey());
+                                codes_to_remove.add(next.getKey());
+                                code_map_to_append.put(firstEntry.getKey(), firstEntry.getValue());
+                            } else {
+                                codes_to_remove.clear();
+                            }
+                        }
+                        firstEntry = next;
+                    }
+                }
+
+                for (String code_to_remove : codes_to_remove) {
+                    code_map.remove(code_to_remove);
+                }
+                code_map.putAll(code_map_to_append);
+            }
+        }
+    }
+
+    /**
+     * Fills the code_map based on the codeToIds Map.
+     * This by checking whether or not the codeToIds contain the Link code.
+     * @param record Map.Entry<String, Record> the entry to check for in the codeToIds map
+     * @param code_map Map<String, Set<String> the map containing the Link Code with the ids that contain that Link Code
+     */
+    private static void fillCodeMapBasedOnCodeToIds(Map.Entry<String, Record> record, Map<String, Set<String>> code_map) {
+        for (String link : record.getValue().links) {
+            for (Map.Entry<String, Set<String>> codeToIdEntry : codesToIds.entrySet()) {
+                if (codeToIdEntry.getKey().equals(link)) {
+                    if (code_map.entrySet().stream().noneMatch(map -> map.getValue().equals(codeToIdEntry))) {
+                        code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
+                    }
+                } else {
+                    List<Set<String>> childLinks = codeHierarchy.entrySet().stream().filter(map -> map.getKey().equals(link)).map(Map.Entry::getValue).collect(Collectors.toList());
+                    if (childLinks.size() > 0) {
+                        for (String child : childLinks.get(0)) {
+                            if (codeToIdEntry.getKey().equals(child)) {
+                                if (code_map.entrySet().stream().noneMatch(map -> map.getValue().contains(child)) && codeToIdEntry.getValue().contains(record.getKey())) {
+                                    code_map.put(codeToIdEntry.getKey(), codeToIdEntry.getValue());
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        return result;
     }
 
+    /**
+     * Updates the relations between the ids and the Link Codes aswell the Parent to Child relation for the Link Codes
+     */
+    private static void updateLinkRelations() {
+        for (Record record : records.values()) {
+            for (String code : record.links) {
+                Set<String> ids = codesToIds.getOrDefault(code, new HashSet<>());
+                ids.add(record.id);
+                codesToIds.put(code, ids);
+
+                setParentRelation(code);
+            }
+        }
+    }
+
+    /**
+     * Calculates the number of homes for the new records by using the closest year.
+     * This only works if the record contains two Link Codes
+     * @param upcomingYear Pair contains the year and the values to calculate from.
+     * @param numberOfHousesToSplit BigDecimal contains the number of homes to split for the new records.
+     * @return Pair containing the new number of homes
+     */
     private static Pair getNumberOfHousesInAccordanceToUpcomingYear(Pair upcomingYear, BigDecimal numberOfHousesToSplit) {
         BigDecimal percentage = upcomingYear.lowestNumber.divide(upcomingYear.highestNumber.add(upcomingYear.lowestNumber), 9, BigDecimal.ROUND_HALF_EVEN); //.setScale(9, BigDecimal.ROUND_HALF_EVEN);
         BigDecimal lowestResult = numberOfHousesToSplit.multiply(percentage).setScale(3, BigDecimal.ROUND_HALF_EVEN);
@@ -1029,13 +939,23 @@ public class Main {
         return new Pair(lowestResult, highestResult);
     }
 
-    private static class Tuple<T> {
-        T key;
+    /**
+     * Class to contain multiple values for further calculation
+     */
+    private static class Tuple {
+        Object key;
         String value;
         SortedSet<String> otherLinkCodes;
         boolean singleCode;
 
-        Tuple(T key, String value, boolean singleCode, SortedSet<String> otherLinkCodes) {
+        /**
+         * Constructor for the Tuple class
+         * @param key Object
+         * @param value String
+         * @param singleCode Boolean
+         * @param otherLinkCodes SortedSet<String>
+         */
+        Tuple(Object key, String value, boolean singleCode, SortedSet<String> otherLinkCodes) {
             this.key = key;
             this.value = value;
             this.singleCode = singleCode;
@@ -1043,20 +963,35 @@ public class Main {
         }
     }
 
+    /**
+     * Class to contain the lowest and highest number of homes
+     */
     private static class Pair {
         BigDecimal lowestNumber;
         BigDecimal highestNumber;
 
+        /**
+         * Constructor for the class Pair
+         * @param low BigDecimal low number of homes
+         * @param high BigDecimal high number of homes
+         */
         Pair(BigDecimal low, BigDecimal high) {
             lowestNumber = low;
             highestNumber = high;
         }
 
+        /**
+         * Returns the lowest and highest number in a String
+         * @return String
+         */
         public String toString() {
             return "Lowestnumber is: " + lowestNumber + " Highestnumber is: " + highestNumber;
         }
     }
 
+    /**
+     * The Record class containing information about each Record
+     */
     private static class Record {
         String id;
         int year;
@@ -1064,24 +999,43 @@ public class Main {
         BigDecimal km2;
         List<String> links = new ArrayList<>();
 
+        /**
+         * Returns the Record as a String
+         * @return String
+         */
         public String toString() {
             return "ID: " + id + " - Year: " + year + " - Houses: " + houses + " - KM2: " + km2 + " - Links: " + links.toString();
         }
     }
 
+    /**
+     * The SquareKilometreRecord class containing square kilometres per Link Code
+     */
     private static class SquareKilometreRecord implements Comparable<SquareKilometreRecord> {
         String linkCode;
         Map<Integer, BigDecimal> km2 = new HashMap<>();
 
+        /**
+         * Compares the given SquareKilometreRecord with the current SquareKilometreRecord
+         * @param sq SquareKilometreRecord containing information about the square kilometres for a specific Link Code
+         * @return Integer
+         */
         public int compareTo(SquareKilometreRecord sq) {
             return linkCode.compareTo(sq.linkCode);
         }
 
+        /**
+         * Returns the value of the SquareKilometreRecord as a String
+         * @return
+         */
         public String toString() {
             return linkCode + " - " + km2.keySet() + " - " + km2.values();
         }
     }
 
+    /**
+     * The VillageComplex Class used to output the data to the CSV
+     */
     private static class VillageComplex {
         Tuple linkCode;
         Map<String, Tuple> yearMap = new HashMap<>();
