@@ -214,6 +214,20 @@ public class Main {
                 }
             }
 
+            Set<String> link_codes_not_to_combine = new TreeSet<>();
+            for(Map.Entry<String, Set<String>> parentEntry : codeHierarchy.entrySet()){
+                if(parentEntry.getKey().length() == 6) {
+                    Set<String> ids = new HashSet<>();
+                    for (String child : parentEntry.getValue()) {
+                        if(codesToIds.get(child) != null)
+                            ids.addAll(codesToIds.get(child));
+                    }
+                    if(ids.size() > years_from_data.size()){
+                        link_codes_not_to_combine.add(parentEntry.getKey());
+                    }
+                }
+            }
+
             for (Map.Entry<String, Set<String>> code_to_id : codesToIds.entrySet()) {
                 if (records_to_alter.containsAll(code_to_id.getValue())) { // Checks if all the ids for a HO code are present E.G. HO0061B=[279, 1367, 601]
                     for (Record record : records.values()) {
@@ -222,7 +236,9 @@ public class Main {
                                 for (Map.Entry<String, Set<String>> hier_entry : codeHierarchy.entrySet()) {
                                     if (hier_entry.getValue().contains(code_to_id.getKey())) { // Checks if the hierarchy_entry value contains the code_to_id key E.G. HO0061B (See above)
                                         if (record.links.containsAll(hier_entry.getValue())) { // Checks if the links contains all the hierarchy_entry values E.G. HO0061=[HO0061A, HO0061B]
-
+                                            if(link_codes_not_to_combine.contains(hier_entry.getKey())){
+                                                continue;
+                                            }
                                             // If all the previous is correct the link codes are adjusted accordingly
                                             String parent = "";
                                             boolean record_is_invalid = false;
@@ -370,7 +386,7 @@ public class Main {
                                         }
                                         recordsToRemove.add(valueToCalculate.getKey());
                                     }
-                                } else {
+                                } else if(record.getValue().houses != null && record.getValue().houses.equals(BigDecimal.ZERO)) {
                                     for(String link : record.getValue().links){
                                         Record r = new Record();
                                         r.year = record.getValue().year;
@@ -381,6 +397,9 @@ public class Main {
                                             recordsToAdd.put(r.id, r);
                                         }
                                     }
+                                    recordsToRemove.add(record.getValue().id);
+                                } else if(record.getValue().houses == null){
+                                    splitRecordWithNullHomes(record);
                                     recordsToRemove.add(record.getValue().id);
                                 }
                             }
@@ -448,10 +467,10 @@ public class Main {
                                 }
                             }
                         }
+                        if(recordList.size() == 1)
+                            do_links_compare = false;
 
                         if (uniques.size() >= record.getValue().links.size() && do_links_compare) {
-
-
                             // Looping through the unique codes to determine duplicate years in the Link codes
                             TreeSet<Integer> years = new TreeSet<>();
 
@@ -522,27 +541,32 @@ public class Main {
                                 }
                             }
                         } else {
-                            Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
-                            BigDecimal totalSquareKilometres = new BigDecimal(0);
-                            totalSquareKilometres = collectSquareKmsToCalculateWith(record, code_map, squareKilometresToCalculateWithMap, totalSquareKilometres);
-                            if (squareKilometresToCalculateWithMap.size() > 0 && !totalSquareKilometres.equals(new BigDecimal(0))) {
-                                for (Map.Entry<String, BigDecimal> entry : squareKilometresToCalculateWithMap.entrySet()) {
-                                    BigDecimal ratio = entry.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
-                                    BigDecimal numberOfHomes = record.getValue().houses.multiply(ratio).setScale(3, BigDecimal.ROUND_HALF_EVEN);
-                                    Record newRecord = new Record();
-                                    newRecord.year = record.getValue().year;
-                                    newRecord.links.add(entry.getKey());
-                                    newRecord.km2 = entry.getValue();
-                                    newRecord.houses = numberOfHomes;
+                            if(record.getValue().houses != null) {
+                                Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
+                                BigDecimal totalSquareKilometres = new BigDecimal(0);
+                                totalSquareKilometres = collectSquareKmsToCalculateWith(record, code_map, squareKilometresToCalculateWithMap, totalSquareKilometres);
+                                if (squareKilometresToCalculateWithMap.size() > 0 && !totalSquareKilometres.equals(new BigDecimal(0))) {
+                                    for (Map.Entry<String, BigDecimal> entry : squareKilometresToCalculateWithMap.entrySet()) {
+                                        BigDecimal ratio = entry.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
+                                        BigDecimal numberOfHomes = record.getValue().houses.multiply(ratio).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                                        Record newRecord = new Record();
+                                        newRecord.year = record.getValue().year;
+                                        newRecord.links.add(entry.getKey());
+                                        newRecord.km2 = entry.getValue();
+                                        newRecord.houses = numberOfHomes;
 
-                                    newRecord.id = record.getKey() + record.getValue().year + entry.getKey() + newRecord.houses;
+                                        newRecord.id = record.getKey() + record.getValue().year + entry.getKey() + newRecord.houses;
 
-                                    if (!recordsToAdd.containsValue(newRecord)) {
-                                        recordsToAdd.put(newRecord.id, newRecord);
+                                        if (!recordsToAdd.containsValue(newRecord)) {
+                                            recordsToAdd.put(newRecord.id, newRecord);
+                                        }
                                     }
+                                    recordsToRemove.add(record.getKey());
+                                    break;
                                 }
-                                recordsToRemove.add(record.getKey());
-                                break;
+                            }else{
+                                splitRecordWithNullHomes(record);
+                                recordsToRemove.add(record.getValue().id);
                             }
                         }
                     }
@@ -601,10 +625,12 @@ public class Main {
                 // Adding the Link codes to a list for further processing, removing duplicates
                 // And adding the Link to the dorpenComplex map for processing
                 if (!codesUsed.contains(entry)) {
-                    codesUsed.add(entry);
-                    SortedSet<String> other_link_codes = new TreeSet<>();
-                    other_link_codes.add(entry);
-                    village.linkCode = new Tuple(entry, "0", true, other_link_codes);
+                    if(records.values().stream().anyMatch(map -> map.links.contains(entry))) {
+                        codesUsed.add(entry);
+                        SortedSet<String> other_link_codes = new TreeSet<>();
+                        other_link_codes.add(entry);
+                        village.linkCode = new Tuple(entry, "0", true, other_link_codes);
+                    }
                 }
 
                 // Checking to see if the dorpencomplex Hashmap is empty
@@ -636,15 +662,7 @@ public class Main {
 
                     // Checks if the length of the Link Code is longer than 6 characters
                     // If so, it gets the code from the codeHierarchy, by checking if the codehierarchy code equals the beginning of the dorpencomplex code
-                    if (village.linkCode.key.toString().length() > 6) {
-                        for (Map.Entry<String, Set<String>> codeHierarchyEntry : codeHierarchy.entrySet()) {
-                            if (codeHierarchyEntry.getValue().contains(village.linkCode.key.toString())) {
-                                dorpenCollected.put(village.linkCode.key.toString(), village);
-                            }
-                        }
-                    } else {
-                        dorpenCollected.put(village.linkCode.key.toString(), village);
-                    }
+                    dorpenCollected.put(village.linkCode.key.toString(), village);
                 }
             }
 
@@ -709,6 +727,20 @@ public class Main {
             }
             csvPrinter.flush();
             csvPrinter.close();
+        }
+    }
+
+    private static void splitRecordWithNullHomes(Map.Entry<String, Record> record) {
+        for(String link : record.getValue().links){
+            Record r = new Record();
+            r.year = record.getValue().year;
+            r.links.add(link);
+            r.houses = null;
+
+            r.id = record.getKey() + record.getValue().year + r.links.toString() + r.houses;
+            if(!recordsToAdd.containsKey(r.id)){
+                recordsToAdd.put(r.id, r);
+            }
         }
     }
 
@@ -920,7 +952,9 @@ public class Main {
                 ids.add(record.id);
                 codesToIds.put(code, ids);
 
-                setParentRelation(code);
+                if(code.contains("HO")) {
+                    setParentRelation(code);
+                }
             }
         }
     }
@@ -1026,7 +1060,7 @@ public class Main {
 
         /**
          * Returns the value of the SquareKilometreRecord as a String
-         * @return
+         * @return String
          */
         public String toString() {
             return linkCode + " - " + km2.keySet() + " - " + km2.values();
@@ -1039,6 +1073,18 @@ public class Main {
     private static class VillageComplex {
         Tuple linkCode;
         Map<String, Tuple> yearMap = new HashMap<>();
+
+        /**
+         * Returns the toString value of VillageComplex
+         * @return String
+         */
+        public String toString(){
+            return "Linkcode value: " + linkCode.value +
+                    " Linkcode key: " + linkCode.key +
+                    " Linkcode otherLinkCodes: " + linkCode.otherLinkCodes +
+                    " Linkcode singlecode: " + linkCode.singleCode +
+                    " yearMap: " + yearMap;
+        }
     }
 
     /**
