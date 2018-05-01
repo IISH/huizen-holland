@@ -22,12 +22,41 @@ public class Main {
     private static Set<String> recordsToRemove = new TreeSet<>();
     private static final Map<String, Record> recordsToAdd = new HashMap<>();
     private static final Set<Integer> years_from_data = new TreeSet<>();
+    private static final SortedMap<String, VillageComplex> dorpenCollected = new TreeMap<>();
 
     private static final CSVFormat csvFormat = CSVFormat.EXCEL
             .withFirstRecordAsHeader()
             .withDelimiter(';')
             .withIgnoreEmptyLines()
             .withNullString("");
+
+    public enum NoteState{
+        SOURCE,
+        YEAR,
+        YEAR_SOURCE,
+        YEAR_SURFACE,
+        SURFACE,
+        COMBINATION;
+
+        public String getState(int year){
+            switch (this){
+                case SOURCE:
+                    return "Bron";
+                case YEAR:
+                    return "Jaar " + Integer.toString(year);
+                case YEAR_SOURCE:
+                    return "Jaar " + Integer.toString(year) + ": Bron";
+                case YEAR_SURFACE:
+                    return "Jaar " + Integer.toString(year) + ": Oppervlakte";
+                case SURFACE:
+                    return "Oppervlakte";
+                case COMBINATION:
+                    return Integer.toString(year) + " + Oppervlakte";
+                default:
+                    return "Onbekend";
+            }
+        }
+    }
 
     /**
      * The main method to start it all
@@ -43,13 +72,14 @@ public class Main {
         String importCsv = args[0];
         String importSquareKilometres = args[1];
         String exportCsv = args[2];
+        String notesCsv = args[3];
 
         loadData(importCsv);
         loadSquareKilometers(importSquareKilometres);
 
         updateLinks();
 
-        export(exportCsv);
+        export(exportCsv, notesCsv);
 
         date = new Date();
         System.out.println(dateFormat.format(date)); //2016/11/16 12:08:43
@@ -85,6 +115,7 @@ public class Main {
             r.houses = record.get("HOUSES") != null ? new BigDecimal(record.get("HOUSES")) : null;
             numberOfHouses = r.houses != null ? numberOfHouses.add(r.houses) : numberOfHouses.add(new BigDecimal(0));
             r.km2 = record.get("KM2") != null ? convertToLocale(record.get("KM2")).setScale(3, BigDecimal.ROUND_HALF_EVEN) : null;
+            r.note = NoteState.SOURCE;
             if (record.get("LINK") != null) {
                 String[] links = record.get("LINK").split("-");
                 for (String code : links) {
@@ -179,7 +210,7 @@ public class Main {
      * @param exportPath String the path to which the export is exported
      * @throws Exception NullPointerException is caught when an exception is thrown.
      */
-    private static void export(String exportPath) throws Exception {
+    private static void export(String exportPath, String notesPath) throws Exception {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(exportPath))) {
             CSVPrinter csvPrinter = new CSVPrinter(writer, csvFormat);
 
@@ -197,7 +228,7 @@ public class Main {
             csvPrinter.printRecord(headerRow);
 
             List<String> codesUsed = new ArrayList<>();
-            SortedMap<String, VillageComplex> dorpenCollected = new TreeMap<>();
+//            SortedMap<String, VillageComplex> dorpenCollected = new TreeMap<>();
 
             int number_of_records_with_multiple_links = 0;
             Set<String> records_to_alter = new TreeSet<>();
@@ -389,18 +420,18 @@ public class Main {
                         }
 
                         Integer year_diff = Integer.MAX_VALUE;
-                        Integer year_temp_something_dunno = 0;
+                        Integer closest_year_for_calculating_number_of_homes = 0;
 
                         // Loop through the map containing the values to calculate
                         // Looping through the records to check which record corresponds with the valueToCalculate ID
-                        year_temp_something_dunno = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, year_temp_something_dunno);
+                        closest_year_for_calculating_number_of_homes = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, closest_year_for_calculating_number_of_homes);
 
                         Map<BigDecimal, List<String>> valuesToCalculateWithMap = new HashMap<>();
                         // Loop through the Map of unique values to perform the calculation
                         for (Map.Entry<String, BigDecimal> uniqueValue : uniqueValuesToCalculateFrom.entrySet()) {
                             // Loop through the records to get the record for which the id and year are the same as the given unique value
                             for (Map.Entry<String, Record> unique_value_record : records.entrySet()) {
-                                if (unique_value_record.getValue().id.equals(uniqueValue.getKey()) && unique_value_record.getValue().year == year_temp_something_dunno) {
+                                if (unique_value_record.getValue().id.equals(uniqueValue.getKey()) && unique_value_record.getValue().year == closest_year_for_calculating_number_of_homes) {
                                     if (uniqueValue.getValue() != null) {
                                         if (uniqueValue.getValue().compareTo(BigDecimal.ZERO) != 0) {
                                             valuesToCalculateWithMap.put(uniqueValue.getValue(), unique_value_record.getValue().links);
@@ -445,6 +476,8 @@ public class Main {
                                             Record r = new Record();
                                             r.year = record.getValue().year;
                                             r.links.add(record_link);
+                                            r.yearUsedToCalculate = closest_year_for_calculating_number_of_homes;
+                                            r.note = NoteState.YEAR_SOURCE;
 
                                             for (Map.Entry<List<String>, BigDecimal> entry : resultMap.entrySet()) {
                                                 if (entry.getKey().contains(record_link)) {
@@ -466,6 +499,8 @@ public class Main {
                                         r.year = record.getValue().year;
                                         r.links.add(link);
                                         r.houses = record.getValue().houses;
+                                        r.yearUsedToCalculate = closest_year_for_calculating_number_of_homes;
+                                        r.note = NoteState.YEAR_SOURCE;
                                         r.id = record.getKey() + record.getValue().year + r.links.toString() + r.houses;
                                         if (!recordsToAdd.containsKey(r.id)) {
                                             recordsToAdd.put(r.id, r);
@@ -494,6 +529,8 @@ public class Main {
                                     newRecord.links.add(entry.getKey());
                                     newRecord.km2 = entry.getValue();
                                     newRecord.houses = numberOfHomes;
+                                    newRecord.yearUsedToCalculate = record.getValue().year;
+                                    newRecord.note = NoteState.YEAR_SURFACE;
 
                                     newRecord.id = record.getKey() + record.getValue().year + entry.getKey() + newRecord.houses;
 
@@ -510,7 +547,7 @@ public class Main {
 
                             for (Record r : records.values()) {
                                 for (Map.Entry<String, BigDecimal> entry : uniqueValuesToCalculateFrom.entrySet()) {
-                                    if (r.id.equals(entry.getKey()) && r.year == year_temp_something_dunno) {
+                                    if (r.id.equals(entry.getKey()) && r.year == closest_year_for_calculating_number_of_homes) {
                                         recordsToUseForCalculation.add(r);
                                     }
                                 }
@@ -535,18 +572,22 @@ public class Main {
                                         Record r = new Record();
                                         r.year = record.getValue().year;
                                         r.links.add(record_link);
+                                        r.yearUsedToCalculate = closest_year_for_calculating_number_of_homes;
+                                        r.note = NoteState.YEAR_SOURCE;
 
                                         for (Map.Entry<List<String>, BigDecimal> entry : resultMap.entrySet()) {
                                             try {
                                                 if (entry.getKey().contains(record_link)) {
                                                     r.houses = entry.getValue();
                                                     break;
+                                                }else{
+                                                    r.houses = null;
                                                 }
                                             } catch (NullPointerException ex) {
                                                 r.houses = entry.getValue();
                                             }
                                         }
-                                        temp = temp.add(r.houses);
+                                        temp = r.houses == null ? BigDecimal.ZERO : temp.add(r.houses);
 
                                         r.id = record.getKey() + record.getValue().year + r.links.toString() + r.houses;
                                         if (!recordsToAdd.containsKey(r.id)) {
@@ -614,18 +655,18 @@ public class Main {
                             }
 
                             Integer year_diff = Integer.MAX_VALUE;
-                            Integer year_temp_something_dunno = 0;
+                            Integer closest_year_for_calculating_number_of_homes = 0;
 
                             // Loop through the map containing the values to calculate
                             // Looping through the records to check which record corresponds with the valueToCalculate ID
-                            year_temp_something_dunno = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, year_temp_something_dunno);
+                            closest_year_for_calculating_number_of_homes = determineClosestYearForCalculatingNumberOfHomes(years, equalValueToCalculate, year_diff, closest_year_for_calculating_number_of_homes);
 
                             Map<BigDecimal, List<String>> valuesToCalculateWithMap = new HashMap<>();
                             // Loop through the Map of unique values to perform the calculation
                             for (Map.Entry<String, BigDecimal> uniqueValue : uniqueValuesToCalculateFrom.entrySet()) {
                                 // Loop through the records to get the record for which the id and year are the same as the given unique value
                                 for (Map.Entry<String, Record> unique_value_record : records.entrySet()) {
-                                    if (unique_value_record.getValue().id.equals(uniqueValue.getKey()) && unique_value_record.getValue().year == year_temp_something_dunno) {
+                                    if (unique_value_record.getValue().id.equals(uniqueValue.getKey()) && unique_value_record.getValue().year == closest_year_for_calculating_number_of_homes) {
                                         valuesToCalculateWithMap.put(uniqueValue.getValue(), unique_value_record.getValue().links);
                                     }
                                 }
@@ -655,6 +696,8 @@ public class Main {
                                         r.houses = calculated_home_value.getKey().setScale(3, BigDecimal.ROUND_HALF_EVEN);
                                         r.year = records.get(entry_to_recalculate.getKey()).year;
                                         r.links = calculated_home_value.getValue();
+                                        r.yearUsedToCalculate = closest_year_for_calculating_number_of_homes;
+                                        r.note = NoteState.YEAR_SOURCE;
                                         r.id = entry_to_recalculate.getKey() + r.year + r.links.toString() + r.houses;
                                         number_of_homes_validator = number_of_homes_validator.add(r.houses);
 
@@ -667,9 +710,6 @@ public class Main {
                             }
                         } else { // use square kilometres to calculate the number of homes
                             if(tried_with_number_of_homes) { // Check to make the use of square kilometres less frequent
-                                if(record.getValue().links.contains("HO0060") || record.getValue().links.contains("HO0060A")){
-                                    System.out.println(record.toString());
-                                }
                                 if (record.getValue().houses != null) {
                                     Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
                                     BigDecimal totalSquareKilometres = new BigDecimal(0);
@@ -683,6 +723,8 @@ public class Main {
                                             newRecord.links.add(entry.getKey());
                                             newRecord.km2 = entry.getValue();
                                             newRecord.houses = numberOfHomes;
+                                            newRecord.yearUsedToCalculate = record.getValue().year;
+                                            newRecord.note = NoteState.YEAR_SURFACE;
 
                                             newRecord.id = record.getKey() + record.getValue().year + entry.getKey() + newRecord.houses;
 
@@ -765,12 +807,14 @@ public class Main {
                 }
             }
 
+            int year_of_record_to_split_the_current_record_with = 0;
             Map<String, List<Record>> recordsToSplitWith = new HashMap<>();
             for (Map.Entry<Record, Set<String>> record_to_split : recordsToSplitToSmallerLinks.entrySet()) {
                 List<Record> recordsToAdd = new ArrayList<>();
                 for (Record record : records.values()) {
                     if (record_to_split.getValue().contains(record.links.get(0)) || record_to_split.getValue().contains(record.links.get(0))) {
                         recordsToAdd.add(record);
+                        year_of_record_to_split_the_current_record_with = record.year;
                     }
                 }
                 recordsToSplitWith.put(record_to_split.getKey().links.get(0), recordsToAdd);
@@ -788,16 +832,22 @@ public class Main {
                     for (Map.Entry<Record, Set<String>> recordsToSplit : recordsToSplitToSmallerLinks.entrySet()) {
                         if (recordsToSplit.getValue().contains(record_to_calculate_with.links.get(0)) || recordsToSplit.getValue().contains(record_to_calculate_with.links.get(0).substring(0, record_to_calculate_with.links.get(0).length()))) {
                             BigDecimal result;
-                            try {
-                                result = ratio.multiply(recordsToSplit.getKey().houses);
-                            }catch(NullPointerException ex){
-                                result = BigDecimal.ZERO;
+                            if(recordsToSplit.getKey().houses == null){
+                                result = null;
+                            }else{
+                                try {
+                                    result = ratio.multiply(recordsToSplit.getKey().houses);
+                                }catch(NullPointerException ex){
+                                    result = BigDecimal.ZERO;
+                                }
                             }
                             Record newRecord = new Record();
                             newRecord.year = recordsToSplit.getKey().year;
                             newRecord.links.addAll(record_to_calculate_with.links);
                             newRecord.km2 = null;
                             newRecord.houses = result;
+                            newRecord.yearUsedToCalculate = recordsToSplit.getKey().yearUsedToCalculate;
+                            newRecord.note = recordsToSplit.getKey().note;
                             recordsToAddToDataset.add(newRecord);
                         }
                         if (!recordsToRemoveFromDataset.contains(recordsToSplit.getKey())) {
@@ -837,7 +887,7 @@ public class Main {
                         codesUsed.add(entry);
                         SortedSet<String> other_link_codes = new TreeSet<>();
                         other_link_codes.add(entry);
-                        village.linkCode = new Tuple(entry, "0", true, other_link_codes);
+                        village.linkCode = new Tuple(entry, "0", NoteState.SOURCE, other_link_codes, 0);
                     }
                 }
 
@@ -854,11 +904,11 @@ public class Main {
                                     if (recordEntry.getValue().links.size() == 1) {
                                         village.linkCode.otherLinkCodes.addAll(recordEntry.getValue().links);
                                         SortedSet<String> set = new TreeSet<>(recordEntry.getValue().links);
-                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : 0, recordEntry.getValue().id, true, set));
+                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : "N/A", recordEntry.getValue().id, recordEntry.getValue().note, set, recordEntry.getValue().yearUsedToCalculate));
                                     } else {
                                         village.linkCode.otherLinkCodes.addAll(recordEntry.getValue().links);
                                         SortedSet<String> set = new TreeSet<>(recordEntry.getValue().links);
-                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : 0, recordEntry.getValue().id, true, set));
+                                        village.yearMap.put(Integer.toString(recordEntry.getValue().year), new Tuple(recordEntry.getValue().houses != null ? recordEntry.getValue().houses.toString() : "N/A", recordEntry.getValue().id, recordEntry.getValue().note, set, recordEntry.getValue().yearUsedToCalculate));
                                     }
                                     break;
                                 } catch (NullPointerException e) {
@@ -919,12 +969,51 @@ public class Main {
                                 dorpenOutput.add(dorpCollected.getValue().linkCode.key.toString());
                                 break;
                             default:
-                                if (new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).compareTo(BigDecimal.ZERO) == 0) {
-                                    dorpenOutput.add("0");
-                                } else {
-                                    BigDecimal numberOfHomes = new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).setScale(3, BigDecimal.ROUND_HALF_EVEN);
-                                    dorpenOutput.add(numberOfHomes.toString());
+                                if(dorpCollected.getValue().yearMap.get(s).key != null && dorpCollected.getValue().yearMap.get(s).key != "N/A") {
+                                    if (new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).compareTo(BigDecimal.ZERO) == 0) {
+                                        dorpenOutput.add("0");
+                                    } else {
+                                        BigDecimal numberOfHomes = new BigDecimal(dorpCollected.getValue().yearMap.get(s).key.toString()).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                                        dorpenOutput.add(numberOfHomes.toString());
+                                    }
+                                }else{
+                                    dorpenOutput.add("N/A");
                                 }
+                                break;
+                        }
+                    } catch (NullPointerException e) {
+                        dorpenOutput.add("N/A");
+                    }
+                }
+                csvPrinter.printRecord(dorpenOutput);
+            }
+            csvPrinter.flush();
+            csvPrinter.close();
+        }
+
+        // Prints the notes data to a separate CSV file.
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(notesPath))) {
+            CSVPrinter csvPrinter = new CSVPrinter(writer, csvFormat);
+
+            List<String> headerRow = new ArrayList<>();
+            headerRow.add("Code");
+            @SuppressWarnings("ComparatorMethodParameterNotUsed")
+            List<String> temp_list = years_from_data.stream().sorted((t1, t2) -> (t1 <= t2) ? -1 : 1).map(map -> Integer.toString(map)).collect(Collectors.toList());
+            headerRow.addAll(temp_list);
+
+            csvPrinter.printRecord(headerRow);
+
+            // Converts the dorpenCollected so it can be saved in the CSV file!
+            for (Map.Entry<String, VillageComplex> dorpCollected : dorpenCollected.entrySet()) {
+                List<String> dorpenOutput = new ArrayList<>();
+                for (String s : headerRow) {
+                    try {
+                        switch (s) {
+                            case "Code":
+                                dorpenOutput.add(dorpCollected.getValue().linkCode.key.toString());
+                                break;
+                            default:
+                                dorpenOutput.add(dorpCollected.getValue().yearMap.get(s).noteState.getState(dorpCollected.getValue().yearMap.get(s).otherYear));
                                 break;
                         }
                     } catch (NullPointerException e) {
@@ -944,6 +1033,7 @@ public class Main {
             r.year = record.getValue().year;
             r.links.add(link);
             r.houses = null;
+            r.note = NoteState.SOURCE;
 
             r.id = record.getKey() + record.getValue().year + r.links.toString() + r.houses;
             if (!recordsToAdd.containsKey(r.id)) {
@@ -1184,9 +1274,19 @@ public class Main {
      * @return Pair containing the new number of homes
      */
     private static Pair getNumberOfHousesInAccordanceToUpcomingYear(Pair upcomingYear, BigDecimal numberOfHousesToSplit) {
-        BigDecimal percentage = upcomingYear.lowestNumber.divide(upcomingYear.highestNumber.add(upcomingYear.lowestNumber), 9, BigDecimal.ROUND_HALF_EVEN); //.setScale(9, BigDecimal.ROUND_HALF_EVEN);
-        BigDecimal lowestResult = numberOfHousesToSplit.multiply(percentage).setScale(3, BigDecimal.ROUND_HALF_EVEN);
-        BigDecimal highestResult = numberOfHousesToSplit.subtract(lowestResult).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+        BigDecimal lowestResult;
+        BigDecimal highestResult;
+        if(upcomingYear.lowestNumber == null){
+            lowestResult = null;
+            highestResult = numberOfHousesToSplit;
+        }else if(upcomingYear.highestNumber == null){
+            lowestResult = numberOfHousesToSplit;
+            highestResult = null;
+        }else {
+            BigDecimal percentage = upcomingYear.lowestNumber.divide(upcomingYear.highestNumber.add(upcomingYear.lowestNumber), 9, BigDecimal.ROUND_HALF_EVEN); //.setScale(9, BigDecimal.ROUND_HALF_EVEN);
+            lowestResult = numberOfHousesToSplit.multiply(percentage).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+            highestResult = numberOfHousesToSplit.subtract(lowestResult).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+        }
         return new Pair(lowestResult, highestResult);
     }
 
@@ -1197,21 +1297,23 @@ public class Main {
         Object key;
         String value;
         SortedSet<String> otherLinkCodes;
-        boolean singleCode;
+        NoteState noteState;
+        int otherYear;
 
         /**
          * Constructor for the Tuple class
          *
          * @param key            Object
          * @param value          String
-         * @param singleCode     Boolean
+         * @param noteState      NoteState
          * @param otherLinkCodes SortedSet<String>
          */
-        Tuple(Object key, String value, boolean singleCode, SortedSet<String> otherLinkCodes) {
+        Tuple(Object key, String value, NoteState noteState, SortedSet<String> otherLinkCodes, int otherYear) {
             this.key = key;
             this.value = value;
-            this.singleCode = singleCode;
+            this.noteState = noteState;
             this.otherLinkCodes = otherLinkCodes;
+            this.otherYear = otherYear;
         }
     }
 
@@ -1252,6 +1354,8 @@ public class Main {
         BigDecimal houses;
         BigDecimal km2;
         List<String> links = new ArrayList<>();
+        NoteState note;
+        int yearUsedToCalculate;
 
         /**
          * Returns the Record as a String
@@ -1259,7 +1363,7 @@ public class Main {
          * @return String
          */
         public String toString() {
-            return "ID: " + id + " - Year: " + year + " - Houses: " + houses + " - KM2: " + km2 + " - Links: " + links.toString();
+            return "ID: " + id + " - Year: " + year + " - Houses: " + houses + " - KM2: " + km2 + " - Links: " + links.toString() + " - Note: " + note + " - Year used to calculate: " + yearUsedToCalculate;
         }
     }
 
@@ -1306,7 +1410,7 @@ public class Main {
             return "Linkcode value: " + linkCode.value +
                     " Linkcode key: " + linkCode.key +
                     " Linkcode otherLinkCodes: " + linkCode.otherLinkCodes +
-                    " Linkcode singlecode: " + linkCode.singleCode +
+                    " Linkcode noteState: " + linkCode.noteState +
                     " yearMap: " + yearMap;
         }
     }
