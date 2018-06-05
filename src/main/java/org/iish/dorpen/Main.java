@@ -1,6 +1,5 @@
 package org.iish.dorpen;
 
-import com.sun.istack.internal.NotNull;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -85,7 +84,7 @@ public class Main {
         String notesCsv = args[3];
 
         loadData(importCsv);
-        loadSquareKilometers(importSquareKilometres);
+        loadSquareKilometres(importSquareKilometres);
 
         updateLinks();
 
@@ -158,7 +157,7 @@ public class Main {
      * @param csvPath in String format the path to the CSV file.
      * @throws Exception if the data from the CSV file cannot be loaded properly.
      */
-    private static void loadSquareKilometers(String csvPath) throws Exception {
+    private static void loadSquareKilometres(String csvPath) throws Exception {
         CSVParser parser = CSVParser.parse(new File(csvPath), Charset.forName("UTF-8"), csvFormat);
         Set<Integer> years = new TreeSet<>();
         for (String year : parser.getHeaderMap().keySet()) {
@@ -738,7 +737,7 @@ public class Main {
                         } else if (tried_with_number_of_homes || doesItNeedToBeSplitWithSquareKilometres) {
                             if (splitRecordForTriedWithNumberOfHomes(record, code_map)) break;
                         } else if (valuesToCalculateWithMap.size() == 1) {
-                            splitRecordWithOneValueToCalculateWith(record, uniqueValuesToCalculateFrom, closest_year_for_calculating_number_of_homes, valuesToCalculateWithMap);
+                            splitRecordWithOneValueToCalculateWith(record, uniqueValuesToCalculateFrom, closest_year_for_calculating_number_of_homes);
                         }
                     } else if (record.getValue().links.size() > 2) {
                         Map<String, Set<String>> code_map = new TreeMap<>();
@@ -847,9 +846,10 @@ public class Main {
                                     Map<String, BigDecimal> squareKilometresToCalculateWithMap = new HashMap<>();
                                     BigDecimal totalSquareKilometres = new BigDecimal(0);
                                     totalSquareKilometres = collectSquareKmsToCalculateWith(record, code_map, squareKilometresToCalculateWithMap, totalSquareKilometres);
-                                    if (alternativeRecordSplittingWithSquareKilometres(record, squareKilometresToCalculateWithMap, totalSquareKilometres))
+                                    if (alternativeRecordSplittingWithSquareKilometres(record, squareKilometresToCalculateWithMap, totalSquareKilometres)) {
+                                        tryAlternativeSplitting = false;
                                         break;
-                                    tryAlternativeSplitting = false;
+                                    }
                                 } else
                                     continue;
                             }
@@ -965,11 +965,6 @@ public class Main {
                 }
                 recordsToAdd.clear();
 
-                // Gets the total number of houses.
-                BigDecimal number_of_homes = new BigDecimal(0);
-                for (Record record : records.values()) {
-                    number_of_homes = record.houses != null ? number_of_homes.add(record.houses) : number_of_homes.add(new BigDecimal(0));
-                }
 
                 // Counts the number of records that contain more than one link code.
                 int duplicate_link_code_validator = 0;
@@ -1210,9 +1205,8 @@ public class Main {
      * @param record is the Record that needs to be split by using the link codes in the record.
      * @param uniqueValuesToCalculateFrom contains the values to calculate from, thus providing new values for the amount of houses.
      * @param closest_year_for_calculating_number_of_homes contains the year to check to collect houses that might be able to use for calculation, which then are checked on size.
-     * @param valuesToCalculateWithMap contains the values to calculate the new values for number of houses with.
      */
-    private static void splitRecordWithOneValueToCalculateWith(Map.Entry<String, Record> record, Map<String, BigDecimal> uniqueValuesToCalculateFrom, Integer closest_year_for_calculating_number_of_homes, Map<BigDecimal, List<String>> valuesToCalculateWithMap) {
+    private static void splitRecordWithOneValueToCalculateWith(Map.Entry<String, Record> record, Map<String, BigDecimal> uniqueValuesToCalculateFrom, Integer closest_year_for_calculating_number_of_homes) {
         List<Record> recordsToUseForCalculation = new ArrayList<>();
 
         for (Record rec : records.values()) {
@@ -1233,8 +1227,8 @@ public class Main {
 
             // Determine the highest number of the returned value after the calculation
             Map<List<String>, BigDecimal> resultMap = new HashMap<>();
-            resultMap.put(valuesToCalculateWithMap.get(recordsToUseForCalculation.get(0).houses), result.lowestNumber);
-            resultMap.put(valuesToCalculateWithMap.get(recordsToUseForCalculation.get(1).houses), result.highestNumber);
+            resultMap.put(recordsToUseForCalculation.get(0).links, result.lowestNumber);
+            resultMap.put(recordsToUseForCalculation.get(1).links, result.highestNumber);
 
             if (record.getValue().id.equals(record.getKey())) {
                 for (String record_link : record.getValue().links) {
@@ -1726,11 +1720,11 @@ public class Main {
      * @return BigDecimal
      */
     private static BigDecimal collectSquareKmsToCalculateWith(Map.Entry<String, Record> record, Map<String, Set<String>> code_map, Map<String, BigDecimal> squareKilometresToCalculateWithMap, BigDecimal totalSquareKilometres) {
-        for (Map.Entry<String, Set<String>> code_to_id : code_map.entrySet()) {
+        for(String link : record.getValue().links){
             for (SquareKilometreRecord srecord : squareKilometreRecords) {
-                if (srecord.linkCode.equals(code_to_id.getKey())) {
+                if (srecord.linkCode.equals(link)) {
                     if (srecord.km2.get(record.getValue().year) != null) {
-                        squareKilometresToCalculateWithMap.put(code_to_id.getKey(), srecord.km2.get(record.getValue().year));
+                        squareKilometresToCalculateWithMap.put(link, srecord.km2.get(record.getValue().year));
                         totalSquareKilometres = totalSquareKilometres.add(srecord.km2.get(record.getValue().year));
                     }
                 }

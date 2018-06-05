@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>JAVA</ID>
+  <OriginalElement>org.iish.dorpen.Main</OriginalElement>
+  <nodes>
+    <node x="105.0" y="90.0">org.iish.dorpen.Main.VillageComplex</node>
+    <node x="255.00000000000003" y="90.0">org.iish.dorpen.Main.SquareKilometreRecord</node>
+    <node x="447.0" y="90.0">org.iish.dorpen.Main.Tuple</node>
+    <node x="376.0" y="0.0">org.iish.dorpen.Main</node>
+    <node x="545.0" y="90.0">org.iish.dorpen.Main.Pair</node>
+    <node x="633.0" y="90.0">org.iish.dorpen.Main.NoteState</node>
+    <node x="0.0" y="90.0">org.iish.dorpen.Main.Record</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="org.iish.dorpen.Main.Pair" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="579.0" y="60.0" />
+      <point x="432.25" y="60.0" />
+      <point x="18.75" y="15.0" />
+    </edge>
+    <edge source="org.iish.dorpen.Main.Tuple" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="486.0" y="70.0" />
+      <point x="419.75" y="70.0" />
+      <point x="6.25" y="15.0" />
+    </edge>
+    <edge source="org.iish.dorpen.Main.SquareKilometreRecord" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="341.0" y="70.0" />
+      <point x="407.25" y="70.0" />
+      <point x="-6.25" y="15.0" />
+    </edge>
+    <edge source="org.iish.dorpen.Main.VillageComplex" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="170.0" y="60.0" />
+      <point x="394.75" y="60.0" />
+      <point x="-18.75" y="15.0" />
+    </edge>
+    <edge source="org.iish.dorpen.Main.NoteState" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="683.0" y="50.0" />
+      <point x="444.75" y="50.0" />
+      <point x="31.25" y="15.0" />
+    </edge>
+    <edge source="org.iish.dorpen.Main.Record" target="org.iish.dorpen.Main">
+      <point x="0.0" y="-15.0" />
+      <point x="42.5" y="50.0" />
+      <point x="382.25" y="50.0" />
+      <point x="-31.25" y="15.0" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic Group" zoom="0.6175152749490835" x="633.4251319261214" y="477.9633905013192" />
+  <SelectedNodes>
+    <node>org.iish.dorpen.Main</node>
+  </SelectedNodes>
+  <Categories>
+    <Category>Inner Classes</Category>
+  </Categories>
+  <SCOPE>All</SCOPE>
+  <VISIBILITY>private</VISIBILITY>
+</Diagram>
+
