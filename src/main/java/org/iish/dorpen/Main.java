@@ -135,8 +135,6 @@ public class Main {
                         Set<String> ids = codesToIds.getOrDefault(code, new HashSet<>());
                         ids.add(newRecord.id);
                         codesToIds.put(code, ids);
-
-                        setParentRelation(code);
                     } else {
                         newRecord.links.add(code);
                     }
@@ -173,6 +171,8 @@ public class Main {
                 s.km2.put(year, squareKm);
             }
             squareKilometreRecords.add(s);
+
+            setParentRelation(s.linkCode);
         });
     }
 
