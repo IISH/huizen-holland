@@ -74,14 +74,14 @@ public class Main {
      * @throws Exception Exception for when the data is not valid to run the code
      */
     public static void main(String[] args) throws Exception {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd-HHmmss");
         Date date = new Date();
         System.out.println(dateFormat.format(date)); //2016/11/16 12:08:43
 
         String importCsv = args[0];
         String importSquareKilometres = args[1];
-        String exportCsv = args[2];
-        String notesCsv = args[3];
+        String exportCsv = args[2] + "\\Early Modern House Count Disaggregation Export " + dateFormat.format(date).replaceAll("-", "T") + ".csv";
+        String notesCsv = args[3] + "\\Early Modern House Count Disaggregation Export notes " + dateFormat.format(date).replaceAll("-", "T") + ".csv";
 
         loadData(importCsv);
         loadSquareKilometres(importSquareKilometres);
@@ -321,11 +321,11 @@ public class Main {
      * Combines link codes based on the given sets with ids of records which should not be combined or split.
      * These are gathered in different ways in the code that calls this record.
      *
-     * @param records_to_alter contains the record ids in String format which the link codes should be altered.
-     * @param recordsToSplit contains the record ids in String format for which the link codes should be split.
+     * @param records_to_alter          contains the record ids in String format which the link codes should be altered.
+     * @param recordsToSplit            contains the record ids in String format for which the link codes should be split.
      * @param link_codes_not_to_combine contains the record ids in String format for which the link codes should not be combined.
-     * @param link_codes_to_leave_out contains the records ids in String format for which the link codes should be left out of splitting.
-     * @param hier_to_check contains the code hierarchy between records in Map<String, Set<String>> format for records to not be split.
+     * @param link_codes_to_leave_out   contains the records ids in String format for which the link codes should be left out of splitting.
+     * @param hier_to_check             contains the code hierarchy between records in Map<String, Set<String>> format for records to not be split.
      */
     private static void combineLinkCodesBasedOnPreviousFilledLists(Set<String> records_to_alter, Set<String> recordsToSplit, Set<String> link_codes_not_to_combine, Set<String> link_codes_to_leave_out, Map<String, Set<String>> hier_to_check) {
         for (Map.Entry<String, Set<String>> code_to_id : codesToIds.entrySet()) {
@@ -462,10 +462,10 @@ public class Main {
      * Checks which code can and which code cannot be split into child codes.
      * This is done by checking with squareKilometreRecords and seeing if the size of records that compare is the same as temp_list (contains the years).
      *
-     * @param temp_list contains the unique years from the raw data set in the format List<String>
-     * @param records_to_alter contains the records to be used to alter in the format Set<String>
+     * @param temp_list               contains the unique years from the raw data set in the format List<String>
+     * @param records_to_alter        contains the records to be used to alter in the format Set<String>
      * @param record_ids_not_to_alter is the Set<String> which will contain the record ids of records that should not be handled for splitting.
-     * @param squareRecordLinkCodes is the Set<String> which will contain the link codes from all the square kilometre records.
+     * @param squareRecordLinkCodes   is the Set<String> which will contain the link codes from all the square kilometre records.
      */
     private static void checkCodesToSplitAndNotToSplit(List<String> temp_list, Set<String> records_to_alter, Set<String> record_ids_not_to_alter, Set<String> squareRecordLinkCodes) {
         for (SquareKilometreRecord srecord : squareKilometreRecords) {
@@ -998,8 +998,10 @@ public class Main {
 
             // Making sure the records have link codes as small as possible.
             // Whilst recalculating the number of homes per record.
+            // Firstly by using km2.
+            splitParentLinkCodesBykm2();
+            // Then by using other records.
             splitParentLinkCodesToChildCodesBeforeExport();
-
             // Counts the number of houses after the calculations are completed and then prints it to the screen.
             BigDecimal number_of_homes = new BigDecimal(0);
             for (Record record : records.values()) {
@@ -1118,10 +1120,10 @@ public class Main {
      * Handles the Record given for which the link codes will be split without using square kilometres.
      * The prerequisite is the valuesToCalculateWithMap containing two values to work with.
      *
-     * @param record is the Record entry that is used in the format Map.Entry<String, Record>.
-     * @param equalValueToCalculate is the Map which contains the value (number of houses) that should be split in the format Map<String, BigDecimal>.
+     * @param record                                       is the Record entry that is used in the format Map.Entry<String, Record>.
+     * @param equalValueToCalculate                        is the Map which contains the value (number of houses) that should be split in the format Map<String, BigDecimal>.
      * @param closest_year_for_calculating_number_of_homes is the year for which the values that can be used that will give the best result in Integer format.
-     * @param valuesToCalculateWithMap contains the values that can be used to calculate the new number of houses per link code in the format Map<BigDecimal, List<String>>.
+     * @param valuesToCalculateWithMap                     contains the values that can be used to calculate the new number of houses per link code in the format Map<BigDecimal, List<String>>.
      */
     private static void splitRecordByTwoValuesToCalculateWithWithoutSquareKilometres(Map.Entry<String, Record> record, Map<String, BigDecimal> equalValueToCalculate, Integer closest_year_for_calculating_number_of_homes, Map<BigDecimal, List<String>> valuesToCalculateWithMap) {
         List<BigDecimal> values = new ArrayList<>();
@@ -1173,7 +1175,7 @@ public class Main {
      * Splits the record based on the link codes by using square kilometres.
      * Prerequisite for this is that in the last loop there were no records that could be split normally.
      *
-     * @param record is the Record that needs to be split by using its link codes as Map.Entry<String, Record>.
+     * @param record   is the Record that needs to be split by using its link codes as Map.Entry<String, Record>.
      * @param code_map is the map that contains the codes that might be used, this is further analyzed in the code.
      * @return a boolean which states whether the record has been split properly.
      */
@@ -1202,8 +1204,8 @@ public class Main {
     /**
      * Splits the record with one value to calculate with.
      *
-     * @param record is the Record that needs to be split by using the link codes in the record.
-     * @param uniqueValuesToCalculateFrom contains the values to calculate from, thus providing new values for the amount of houses.
+     * @param record                                       is the Record that needs to be split by using the link codes in the record.
+     * @param uniqueValuesToCalculateFrom                  contains the values to calculate from, thus providing new values for the amount of houses.
      * @param closest_year_for_calculating_number_of_homes contains the year to check to collect houses that might be able to use for calculation, which then are checked on size.
      */
     private static void splitRecordWithOneValueToCalculateWith(Map.Entry<String, Record> record, Map<String, BigDecimal> uniqueValuesToCalculateFrom, Integer closest_year_for_calculating_number_of_homes) {
@@ -1254,9 +1256,9 @@ public class Main {
     /**
      * An alternative way for splitting a record based upon the link codes in the record.
      *
-     * @param record is the Record which needs to be split.
+     * @param record                             is the Record which needs to be split.
      * @param squareKilometresToCalculateWithMap contains the SquareKilometreRecord objects to calculate the new number of houses with.
-     * @param totalSquareKilometres contains the total of square kilometres collected beforehand upon calling this method. This is used in the calculation.
+     * @param totalSquareKilometres              contains the total of square kilometres collected beforehand upon calling this method. This is used in the calculation.
      * @return a boolean which states whether the record has been split properly.
      */
     private static boolean alternativeRecordSplittingWithSquareKilometres(Map.Entry<String, Record> record, Map<String, BigDecimal> squareKilometresToCalculateWithMap, BigDecimal totalSquareKilometres) {
@@ -1296,7 +1298,7 @@ public class Main {
     /**
      * Splits the record by using square kilometres which are collected by using the record itself and the code_map.
      *
-     * @param record is the Record that needs to be split by using the link codes present.
+     * @param record   is the Record that needs to be split by using the link codes present.
      * @param code_map contains the record codes that need to be used for the calculation of the new number of houses.
      * @return a boolean which states whether the Record has been split properly.
      */
@@ -1386,6 +1388,95 @@ public class Main {
                 // If so, it gets the code from the codeHierarchy, by checking if the codehierarchy code equals the beginning of the dorpencomplex code
                 dorpenCollected.put(village.linkCode.key.toString(), village);
             }
+        }
+    }
+
+    /**
+     * Splits the parent link codes by the link codes provided with the square kilometres.
+     * Then either splits the number of houses by using the km2 if it is available.
+     * Otherwise it will be split by dividing the number of houses by the number of link codes.
+     */
+    private static void splitParentLinkCodesBykm2(){
+        for(SquareKilometreRecord squareKilometreRecord : squareKilometreRecords){
+            setParentRelation(squareKilometreRecord.linkCode);
+        }
+
+        Map<Record, Set<String>> recordsToSplitToSmallerLinks = new HashMap<>();
+        for(Record record : records.values()){
+            for(Map.Entry<String, Set<String>> code_hier_entry : codeHierarchy.entrySet()){
+                if(record.links.contains(code_hier_entry.getKey())){
+                    if(code_hier_entry.getValue().size() > 1){
+                        Set<String> codes = new TreeSet<>();
+                        try {
+                            for (String child : code_hier_entry.getValue()) {
+                                if (codeHierarchy.get(child).size() > 1) {
+                                    codes.addAll(codeHierarchy.get(child));
+                                }
+                            }
+                        } catch (NullPointerException ex) {
+                            codes.addAll(code_hier_entry.getValue());
+                        }
+                        recordsToSplitToSmallerLinks.put(record, codes);
+                    }
+                }
+            }
+        }
+        Map<Record, Map<String, BigDecimal>> squareKilometresToSplitWith = new HashMap<>();
+        for(Map.Entry<Record, Set<String>> recordToSplit : recordsToSplitToSmallerLinks.entrySet()){
+            Map<String, BigDecimal> squareKm2Map = new HashMap<>();
+            for(String record_to_split_link_code : recordToSplit.getValue()){
+                for(SquareKilometreRecord squareKilometreRecord : squareKilometreRecords){
+                    if(squareKilometreRecord.linkCode.equals(record_to_split_link_code)){
+                        squareKm2Map.put(record_to_split_link_code, squareKilometreRecord.km2.get(recordToSplit.getKey().year));
+                    }
+                }
+            }
+            squareKilometresToSplitWith.put(recordToSplit.getKey(), squareKm2Map);
+        }
+
+        Set<String> recordsToRemoveFromRecords = new TreeSet<>();
+        for(Map.Entry<Record, Map<String, BigDecimal>> squareKilometreToSplit : squareKilometresToSplitWith.entrySet()){
+            BigDecimal totalSquareKilometres = new BigDecimal(0);
+            for(BigDecimal bd : squareKilometreToSplit.getValue().values()){
+                totalSquareKilometres = totalSquareKilometres.add(bd);
+            }
+            BigDecimal numberOfNewHouses = new BigDecimal(0);
+            for(Map.Entry<String, BigDecimal> map : squareKilometreToSplit.getValue().entrySet()){
+                if(totalSquareKilometres.compareTo(BigDecimal.ZERO) != 0) {
+                    if (map.getValue() != null) {
+                        if (map.getValue().compareTo(BigDecimal.ZERO) != 0) {
+                            BigDecimal ratio = map.getValue().divide(totalSquareKilometres, BigDecimal.ROUND_HALF_EVEN);
+                            BigDecimal newNumberOfHomes = squareKilometreToSplit.getKey().houses.multiply(ratio).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                            numberOfNewHouses = numberOfNewHouses.add(newNumberOfHomes);
+                            createNewRecord(squareKilometreToSplit.getKey(), newNumberOfHomes, map.getKey(), map.getValue(), NoteState.YEAR_SURFACE, squareKilometreToSplit.getKey().year);
+                        } else {
+                            createNewRecord(squareKilometreToSplit.getKey(), BigDecimal.ZERO, map.getKey(), map.getValue(), NoteState.YEAR_SURFACE, squareKilometreToSplit.getKey().year);
+                        }
+                    } else {
+                        createNewRecord(squareKilometreToSplit.getKey(), null, map.getKey(), map.getValue(), NoteState.YEAR_SURFACE, squareKilometreToSplit.getKey().year);
+                    }
+                }else{
+                    if(squareKilometreToSplit.getKey().houses != null) {
+                        BigDecimal numberOfLinks = new BigDecimal(squareKilometreToSplit.getValue().size()).setScale(3, BigDecimal.ROUND_HALF_EVEN);
+                        BigDecimal numberOfHouses = squareKilometreToSplit.getKey().houses.divide(numberOfLinks,3, BigDecimal.ROUND_HALF_EVEN);
+                        numberOfNewHouses = numberOfNewHouses.add(numberOfHouses);
+                        createNewRecord(squareKilometreToSplit.getKey(), numberOfHouses, map.getKey(), map.getValue(), NoteState.YEAR_SURFACE, squareKilometreToSplit.getKey().year);
+                    }else{
+                        createNewRecord(squareKilometreToSplit.getKey(), null, map.getKey(), map.getValue(), NoteState.YEAR_SURFACE, squareKilometreToSplit.getKey().year);
+                    }
+                }
+            }
+            recordsToRemoveFromRecords.add(squareKilometreToSplit.getKey().id);
+        }
+
+        for (String id : recordsToRemoveFromRecords) {
+            records.remove(id);
+        }
+
+        for (Map.Entry<String, Record> entry : recordsToAdd.entrySet()) {
+            entry.getValue().id = Integer.toString(record_id_counter);
+            records.put(Integer.toString(record_id_counter), entry.getValue());
+            record_id_counter++;
         }
     }
 
@@ -1500,11 +1591,11 @@ public class Main {
      * Processes the splitting of a Record by using the link codes.
      * Prerequisite is the variable total_to_calculate_from not being NULL or equalling the value BigDecimal.ZERO.
      *
-     * @param equalValueToCalculate contains the value with number of houses to calculate to new value with number of houses.
+     * @param equalValueToCalculate                        contains the value with number of houses to calculate to new value with number of houses.
      * @param closest_year_for_calculating_number_of_homes contains the year to be used to set on the new Record.
-     * @param valuesToCalculateWithMap contains the values to calculate the new number of houses with.
-     * @param noteState contains the noteState to be given to the new Record.
-     * @param total_to_calculate_from contains the total number of houses to calculate with.
+     * @param valuesToCalculateWithMap                     contains the values to calculate the new number of houses with.
+     * @param noteState                                    contains the noteState to be given to the new Record.
+     * @param total_to_calculate_from                      contains the total number of houses to calculate with.
      */
     private static void processSplittingOfLinkCodesIntoNewRecordsForTotalHousesNotNullOrZero(Map<String, BigDecimal> equalValueToCalculate, Integer closest_year_for_calculating_number_of_homes, Map<BigDecimal, List<String>> valuesToCalculateWithMap, NoteState noteState, BigDecimal total_to_calculate_from) {
         for (Map.Entry<String, BigDecimal> entry_to_recalculate : equalValueToCalculate.entrySet()) {
@@ -1547,10 +1638,10 @@ public class Main {
      * Collects the values to calculate the new number of houses with by using the unique values to calculate from.
      * Furthermore it set the NoteState of the unique value record for which the NoteState is not SOURCE.
      *
-     * @param uniqueValuesToCalculateFrom contains the unique values to be used to calculate the new number of houses with.
+     * @param uniqueValuesToCalculateFrom                  contains the unique values to be used to calculate the new number of houses with.
      * @param closest_year_for_calculating_number_of_homes contains the year to be used for the calculation of the new number of houses, here needed to check the unique_value_record containing the right year.
-     * @param valuesToCalculateWithMap is the Map which will contain the values that can be used to calculate the new number of houses with.
-     * @param noteState is a NoteState object which will contain the NoteState of the unique_value_record if the NoteState is not SOURCE.
+     * @param valuesToCalculateWithMap                     is the Map which will contain the values that can be used to calculate the new number of houses with.
+     * @param noteState                                    is a NoteState object which will contain the NoteState of the unique_value_record if the NoteState is not SOURCE.
      * @return the NoteState that has been given to the NoteState parameter.
      */
     private static NoteState fillValuesToCalculateWithAndGetNoteState(Map<String, BigDecimal> uniqueValuesToCalculateFrom, Integer closest_year_for_calculating_number_of_homes, Map<BigDecimal, List<String>> valuesToCalculateWithMap, NoteState noteState) {
@@ -1571,9 +1662,9 @@ public class Main {
      * Determines the best year to use for calculating the new number of houses with for the current Record.
      * This is done by checking whether the Record contains all link values present in the CodeHierarchy object.
      *
-     * @param record is the Record which is used to check which year is best to use for splitting, whilst excluding it's year.
+     * @param record                                       is the Record which is used to check which year is best to use for splitting, whilst excluding it's year.
      * @param closest_year_for_calculating_number_of_homes will contain the year that is best to calculate the new number of houses.
-     * @param record_year_link_map contains the years with the codes which belong to the specific year.
+     * @param record_year_link_map                         contains the years with the codes which belong to the specific year.
      * @return the year which is best used for calculating the new number of houses.
      */
     private static Integer determineTheBestYearToUseForSplitting(Map.Entry<String, Record> record, Integer closest_year_for_calculating_number_of_homes, Map<Integer, Set<String>> record_year_link_map) {
@@ -1612,12 +1703,12 @@ public class Main {
     /**
      * Determines bothe the Records which should not be used in the calculation and fills the record_year_link_map with codes from records that only contain one link code.
      *
-     * @param record the current Record for getting the year to check the year checked isn't the same year as that of the Record.
-     * @param code_map contains the codes that are used for calculating the new number of houses.
-     * @param years contains the years which are derived from the raw data file.
+     * @param record                      the current Record for getting the year to check the year checked isn't the same year as that of the Record.
+     * @param code_map                    contains the codes that are used for calculating the new number of houses.
+     * @param years                       contains the years which are derived from the raw data file.
      * @param uniqueValuesToCalculateFrom contains the unique values to calculate the new number of houses from.
-     * @param records_not_to_use is the Set which will contain the records that should not be used for calculation.
-     * @param record_year_link_map is the Map which will contain the years with the codes that can be used for calculation.
+     * @param records_not_to_use          is the Set which will contain the records that should not be used for calculation.
+     * @param record_year_link_map        is the Map which will contain the years with the codes that can be used for calculation.
      */
     private static void determineRecordsNotToUseAndFillRecordYearLinkMap(Map.Entry<String, Record> record, Map<String, Set<String>> code_map, TreeSet<Integer> years, Map<String, BigDecimal> uniqueValuesToCalculateFrom, Set<String> records_not_to_use, Map<Integer, Set<String>> record_year_link_map) {
         for (Integer year : years) {
@@ -1664,9 +1755,9 @@ public class Main {
      * Creates a new Record based upon square kilometres. It uses the squareKilometresToCalculateWithMap to determine which value to use by checking with link_code.
      *
      * @param squareKilometresToCalculateWithMap contains the number of square kilometres to be used for calculating the new number of houses.
-     * @param link_code is the link code that needs to be used for calculation of the new Record.
-     * @param totalSquareKilometres contains the total number of square kilometres of the link codes to be used for the specific year.
-     * @param record is the Record that needs to be split to new Records.
+     * @param link_code                          is the link code that needs to be used for calculation of the new Record.
+     * @param totalSquareKilometres              contains the total number of square kilometres of the link codes to be used for the specific year.
+     * @param record                             is the Record that needs to be split to new Records.
      * @return a boolean which states whether the creation of the new Record has been successful.
      */
     private static boolean createNewRecordBasedOnSquareKilometres(Map<String, BigDecimal> squareKilometresToCalculateWithMap, String link_code, BigDecimal totalSquareKilometres, Record record) {
@@ -1720,7 +1811,7 @@ public class Main {
      * @return BigDecimal
      */
     private static BigDecimal collectSquareKmsToCalculateWith(Map.Entry<String, Record> record, Map<String, Set<String>> code_map, Map<String, BigDecimal> squareKilometresToCalculateWithMap, BigDecimal totalSquareKilometres) {
-        for(String link : record.getValue().links){
+        for (String link : record.getValue().links) {
             for (SquareKilometreRecord srecord : squareKilometreRecords) {
                 if (srecord.linkCode.equals(link)) {
                     if (srecord.km2.get(record.getValue().year) != null) {
