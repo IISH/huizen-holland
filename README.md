@@ -6,16 +6,14 @@ Huizen Holland is a project used to split data which contains information
 The new data can then be used for research on the multiple villages and the cities.
 
 ## Usage
-In order to use the code to process the data there are a couple of things that need to be done.
-These are:
+In order to use the code to process the data there are two things that can be done. These are:
 
-- Have an IDE to open the code and run it from the IDE or use the command line to execute the Java file
-- Download the project from github to a local folder
-- Have the data to process available for usage, which needs to be referred to by
-  * editing the configuration to comply the format used in the code
-  * referring to the files needed via the command line as parameters (still work in progress)
-  
-Remember to make sure the files are in the correct format for the program to handle them.
+- Downloading the code directly from github to a local folder.
+    - Have an IDE to open the code and run it from within the IDE.
+- Call the java application by using the command line.
+    - Have the java application downloaded and ready for use.
+
+Remember to make sure the files needed exist in the same folder as the application/code and are in the correct format for the program to handle them.
 
 #### Raw data
 The format for the first file, e.g. the database with the raw information about the number of houses, 
@@ -95,3 +93,33 @@ After the export, this file can be used by researcher to determine how the calcu
 for splitting the number of houses per location. In this way it is possible to determine how large
 the deviation could be for the specific location and year.
 
+
+##Calling the script via command line
+In order to call the script via the command line, one needs to either open the command prompt or powershell.
+
+Command Prompt: Click the Windows logo → Windows System → Command Prompt or press the Windows logo on the keyboard and start typing "command prompt" and then pressing "Enter".
+Powershell: Click the Windows logo → Windows Powershell → Windows Powershell or press the Windows logo on the keyboard and start typing "(Windows) Powershell" and the pressing "Enter".
+
+When one of these is opened it will show the current directory it is in like: "C:\Users\[your username]>". From here you will need to navigate to the directory that contains the application. This can be done by using the following command:
+- "cd .\<Directory to go to>\<potential subdirectory to go to>\" and then press "Enter"
+
+After using the command the directory displayed should be something like "C:\Users\[username]\Desktop\Huizen Holland>".
+From here it is possible to check the files present in that directory by using the following command:
+- For Command Prompt: "dir"
+- For Powershell: "ls"
+These commands will display all the files present.
+
+If checked if the java application is present in the current directory, it can be called by using the following command:
+- "java -jar .\EMHCD.jar '.\Huizen Holland Database (2018-02-28)_compact.csv' '.\km2 - Huizen Holland Database (2018-05-30).csv' .\output\ .\output\"
+
+This command calls the java installed on the computer and gives the argument a 'JAR' file will be run and the name of the JAR file being ".\EMHCD.jar". Along with this call a couple of parameters are given, namely:
+- '.\Huizen Holland Database (2018-02-28)_compact.csv' → the data set to be converted. The format for this can be found above under the heading "Raw data".
+- '.\km2 - Huizen Holland Database (2018-05-30).csv' → the data of the km2 to be used for converting the raw data set. The format for this can be found above under the heading "Square Kilometres".
+- .\output\ → The output directory for the processed data. The format used by the application can be found under "Export File".
+- .\output\ → The output directory for the notes data. The format used by the application can be found under "Notes File".
+
+When running, the application will display information on the screen to show what is happening during the process.
+
+As soon as the application is done, the output files can be found under the directory given when calling the application. The naming convention of the output files will be something like this:
+- Export File: "Early Modern House Count Disaggregation Export 20180611T165137.csv"
+- Notes File: "Early Modern House Count Disaggregation Export Notes 20180611T165137.csv"
